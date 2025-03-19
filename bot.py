@@ -13,8 +13,9 @@ async def main():
 
     storage = MemoryStorage()
     sheet_manager = SheetManager()
-    dp = Dispatcher(storage=storage)
+    await sheet_manager.start_periodic_refresh()
 
+    dp = Dispatcher(storage=storage)
     dp.message.middleware(SheetManagerMiddleware(sheet_manager))
     dp.callback_query.middleware(SheetManagerMiddleware(sheet_manager))
 
@@ -26,6 +27,7 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
+        await sheet_manager.stop_periodic_refresh()
         await bot.session.close()
 
 class SheetManagerMiddleware:

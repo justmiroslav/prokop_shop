@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from io import StringIO
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
 from utils.keybords import get_date_keyboard, get_sales_menu, get_categories_sales_keyboard
@@ -101,18 +102,41 @@ async def find_and_show_sales(message, state, get_sales_func, loading_text, not_
         await state.clear()
         return
 
-    await send_sales_report(message, sales, report_title)
-    await state.clear()
+    await send_sales_report(message, state, sales, report_title)
 
-async def send_sales_report(message: Message, sales: set[Sale], title: str):
+@router.callback_query(F.data == "get_detailed_report")
+async def get_detailed_report(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    report, sales, report_message_id = data.get("report"), data.get("last_sales"), data.get("report_message_id")
+    for sale in sales[10:]:
+        report += sale.__str__() + "\n\n"
+
+    detailed_report = StringIO()
+    detailed_report.write(report)
+
+    await callback.message.answer_document(BufferedInputFile(detailed_report.getvalue().encode("utf-8"),
+        filename=f"sales_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt"), caption="📋 Детальный отчет по продажам")
+    await callback.bot.edit_message_text(chat_id=callback.message.chat.id, message_id=report_message_id,
+        text=callback.message.text, reply_markup=None)
+    await state.clear()
+    await callback.answer()
+
+async def send_sales_report(message: Message, state: FSMContext, sales: list[Sale], title: str):
     report = f"{title}:\n\n"
     report += f"Всего продаж: *{len(sales)}*\n"
     report += f"Общая сумма: *{sum(sale.total for sale in sales)} грн*\n"
-    report += "\nСписок продаж:\n\n"
-    for sale in sales:
-        report += f"{sale}\n\n"
+    report += "📊 *Сводка по товарам:*\n\n"
+    for sale in sales[:10]:
+        report += sale.__str__() + "\n\n"
 
-    await message.answer(report, reply_markup=get_sales_menu())
+    report_message = await message.answer(report, reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📋 Получить детальный отчет", callback_data="get_detailed_report")]
+            ]
+        )
+    )
+    await state.update_data(report=report, last_sales=sales, report_message_id=report_message.message_id)
+    await message.answer("Выбери действие", reply_markup=get_sales_menu())
 
 async def return_to_sales_menu(message: Message, state: FSMContext):
     await message.answer("Выберите отчет", reply_markup=get_sales_menu())

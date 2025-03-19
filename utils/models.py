@@ -30,7 +30,13 @@ class Product:
         self.available += amount
 
     def buy(self, amount: int) -> None:
-        self.available -= amount
+        if not self.reserved:
+            self.available -= amount
+        else:
+            to_release = min(self.reserved, amount)
+            self.reserved -= to_release
+            if self.reserved == 0:
+                self.available -= amount - to_release
 
 @dataclass
 class Sale:
@@ -45,10 +51,6 @@ class Sale:
         attribute = CONFIG.ATTRIBUTE_MAP.get(CONFIG.PRODUCT_CATEGORIES[self.category])
         attribute_emoji = CONFIG.ATTRIBUTE_EMOJIS.get(attribute)
         return (
-            f"📅 Дата: {self.data.strftime('%d.%m.%Y %H:%M')}\n"
-            f"📂 Категория: {self.category}\n"
-            f"🏷️ Товар: {self.product_name}\n"
-            f"{attribute_emoji} {attribute.title()}: {self.attribute}\n"
-            f"📦 Количество: {self.amount} шт.\n"
-            f"💰 Сумма: {self.total} грн"
+            f"🏷️ Товар: {self.product_name}, {attribute} {attribute_emoji}: {self.attribute}\n"
+            f"📦 Количество: {self.amount} шт, 🕒 дата: {self.data}"
         )

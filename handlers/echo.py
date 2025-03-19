@@ -14,5 +14,5 @@ async def echo_handler(message: Message, state: FSMContext):
     if cur_state:
         reply_kb = get_date_keyboard() if cur_state == SaleStates.SELECT_PERIOD else get_categories_sales_keyboard()
     else:
-        reply_kb = get_main_menu() if last_context == "main" else get_operations_menu() if last_context == "operations" else get_sales_menu()
+        reply_kb = get_operations_menu() if last_context == "operations" else get_sales_menu() if last_context == "sales" else get_main_menu()
     await message.answer("Я не понимаю эту команду", reply_markup=reply_kb)

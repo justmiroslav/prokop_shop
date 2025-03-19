@@ -14,22 +14,23 @@ class ProductOperations:
         self.sheet_manager = sheet_manager
 
     def handle_reserve(self, category, product, attribute, amount):
-        if not self.can_reserve_or_buy(product, amount):
+        if not product.can_reserve_buy(amount):
             return self.get_not_enough_error(product)
 
         self.sheet_manager.reserve_product_amount(category, product, amount)
         return f"📌 Забронировано {amount} шт. товара {product.name} ({attribute})"
 
     def handle_release(self, category, product, attribute, amount):
-        if not self.can_release(product, amount):
+        if not product.can_release(amount):
             return f"Недостаточно в брони. В резерве: {product.reserved}"
 
         self.sheet_manager.release_product_amount(category, product, amount)
         return f"🚫 Снято {amount} шт. товара {product.name} ({attribute})"
 
     def handle_buy(self, category, product, attribute, amount):
-        if not self.can_reserve_or_buy(product, amount):
-            return self.get_not_enough_error(product)
+        total_available = product.available + product.reserved
+        if total_available < amount:
+            return self.get_not_enough_error(product, total_available)
 
         self.sheet_manager.buy_product_amount(category, product, amount)
         return f"✅ Продано {amount} шт. товара {product.name} ({attribute}) на сумму {product.price * amount} грн."
@@ -39,16 +40,8 @@ class ProductOperations:
         return f"➕ Добавлено {amount} шт. товара {product.name} ({attribute})"
 
     @staticmethod
-    def can_reserve_or_buy(product, amount):
-        return product.can_reserve_buy(amount)
-
-    @staticmethod
-    def can_release(product, amount):
-        return product.can_release(amount)
-
-    @staticmethod
-    def get_not_enough_error(product):
-        return f"Недостаточно товара. Доступно: {product.available}"
+    def get_not_enough_error(product, amount=None):
+        return f"Недостаточно товара. Доступно: {product.available if not amount else amount}"
 
 def get_message_text_qty(action: str, category: str, product_name: str, attribute: str, qty: int) -> tuple[str, int]:
     end_message = "Текущее количество" if action == "add" else "В резерве" if action == "release" else "Доступно"
@@ -107,7 +100,7 @@ async def process_attribute_selection(callback: CallbackQuery, state: FSMContext
     await state.update_data(attribute=attribute)
 
     product = sheet_manager.find_product(category, product_name, attribute)
-    qty = product.reserved if action == "release" else product.available
+    qty = product.reserved if action == "release" else product.available + product.reserved if action == "buy" else product.available
     message_text, max_qty = get_message_text_qty(action, category, product_name, attribute, qty)
 
     await callback.message.delete()
