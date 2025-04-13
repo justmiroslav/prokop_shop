@@ -4,11 +4,10 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 
-from utils.keybords import get_date_keyboard, get_sales_menu, get_categories_sales_keyboard
+from utils.keybords import get_statistics_keyboard, get_main_menu
 from utils.states import SaleStates
 from repository.sheets import SheetManager
-from utils.config import CONFIG
-from utils.models import Sale
+from utils.models import Order
 
 router = Router()
 
@@ -43,101 +42,97 @@ def get_date_period_params(text):
         }
     return None
 
-@router.message(F.text == "📅 По дате")
-async def sales_by_date(message: Message, state: FSMContext):
-    await message.answer("Выбери период", reply_markup=get_date_keyboard())
+@router.message(F.text == "📊 Статистика по дате")
+async def show_date_selection(message: Message, state: FSMContext):
+    await state.update_data(context="sales")
+    await message.answer("Выбери период", reply_markup=get_statistics_keyboard())
     await state.set_state(SaleStates.SELECT_PERIOD)
-
-@router.message(F.text == "📊 По категории")
-async def sales_by_category(message: Message, state: FSMContext):
-    await message.answer("Выбери категорию", reply_markup=get_categories_sales_keyboard())
-    await state.set_state(SaleStates.CATEGORY)
 
 @router.message(SaleStates.SELECT_PERIOD)
 async def process_date_selection(message: Message, state: FSMContext, sheet_manager: SheetManager):
     text = message.text
 
     if text == "🔙 Назад":
-        await return_to_sales_menu(message, state)
+        await message.answer("Выберите действие", reply_markup=get_main_menu())
+        await state.update_data(context="main")
+        await state.clear()
         return
 
     period_params = get_date_period_params(text)
     if not period_params:
-        await message.answer("Неверный выбор. Пожалуйста, используйте кнопки.")
+        await message.answer("Неверный выбор. Пожалуйста, используйте кнопки.", reply_markup=get_statistics_keyboard())
         return
 
-    await find_and_show_sales(message, state, sheet_manager.get_sales,
-        f"🔍 Ищем продажи за *{period_params["period_name"]}*...",
-        f"Продажи за *{period_params["period_name"]}* не найдены",
-        f"📊 Продажи за *{period_params["period_name"]}*",
-        args=(period_params["start_date"], period_params["end_date"])
-    )
+    await find_and_show_orders(message, state, sheet_manager.get_orders_by_date,
+                               f"🔍 Ищем заказы за *{period_params['period_name']}*...",
+                               f"Заказы за *{period_params['period_name']}* не найдены",
+                               f"📊 Заказы за *{period_params['period_name']}*",
+                               args=(period_params["start_date"], period_params["end_date"])
+                               )
 
-@router.message(SaleStates.CATEGORY)
-async def process_category_selection(message: Message, state: FSMContext, sheet_manager: SheetManager):
-    category = message.text
-
-    if category == "🔙 Назад":
-        await return_to_sales_menu(message, state)
-        return
-
-    if category not in CONFIG.PRODUCT_CATEGORIES:
-        await message.answer("Неверная категория. Пожалуйста, выберите из предложенных.")
-        return
-
-    await find_and_show_sales(message, state, sheet_manager.get_sales_by_category,
-        f"🔍 Ищем продажи для категории *\"{category}\"*...",
-        f"Продажи для категории *\"{category}\"* не найдены",
-        f"📊 Продажи для категории *\"{category}\"*",
-        args=(category,)
-    )
-
-async def find_and_show_sales(message, state, get_sales_func, loading_text, not_found_text, report_title, args=()):
+async def find_and_show_orders(message, state, get_orders_func, loading_text, not_found_text, report_title, args=()):
     loading_msg = await message.answer(loading_text)
-    sales = get_sales_func(*args)
+    orders = get_orders_func(*args)
     await loading_msg.delete()
 
-    if not sales:
-        await message.answer(not_found_text, reply_markup=get_sales_menu())
-        await state.clear()
+    if not orders:
+        await message.answer(not_found_text, reply_markup=get_statistics_keyboard())
         return
 
-    await send_sales_report(message, state, sales, report_title)
+    await send_orders_report(message, state, orders, report_title)
+
+async def send_orders_report(message: Message, state: FSMContext, orders: list[Order], title: str):
+    total_sales = sum(order.total for order in orders)
+
+    report = f"{title}:\n\n"
+    report += f"Всего заказов: *{len(orders)}*\n"
+    report += f"Общая сумма: *{total_sales} грн*\n\n"
+    report += "📋 Заказы:\n\n"
+
+    for i, order in enumerate(orders[:5], 1):
+        report += f"*{i}.* {order.__str__()}\n\n"
+        report += "🧬 Состав заказа:\n\n"
+        for sale in order.sales:
+            report += sale.__str__() + "\n"
+
+    has_more = len(orders) > 5
+    if has_more:
+        report += f"... и еще {len(orders) - 5} заказов"
+
+    report_message = await message.answer(report, reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Получить детальный отчет", callback_data="get_detailed_report")]
+        ] if has_more else []
+    ))
+    await state.update_data(report=report, last_orders=orders, report_message_id=report_message.message_id)
+    await message.answer("Выбери период", reply_markup=get_statistics_keyboard())
 
 @router.callback_query(F.data == "get_detailed_report")
 async def get_detailed_report(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    report, sales, report_message_id = data.get("report"), data.get("last_sales"), data.get("report_message_id")
-    for sale in sales[10:]:
-        report += sale.__str__() + "\n\n"
+    report, orders = data.get("report"), data.get("last_orders")
+
+    if len(orders) > 5:
+        report = report.replace(f"... и еще {len(orders) - 5} заказов", "")
+
+    for i, order in enumerate(orders[5:], 6):
+        report += f"*{i}.* {order.__str__()}\n\n"
+        report += "🧬 Состав заказа:\n\n"
+        for sale in order.sales:
+            report += sale.__str__() + "\n"
 
     detailed_report = StringIO()
     detailed_report.write(report)
 
     await callback.message.answer_document(BufferedInputFile(detailed_report.getvalue().encode("utf-8"),
-        filename=f"sales_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt"), caption="📋 Детальный отчет по продажам")
-    await callback.bot.edit_message_text(chat_id=callback.message.chat.id, message_id=report_message_id,
-        text=callback.message.text, reply_markup=None)
-    await state.clear()
-    await callback.answer()
+                                                             filename=f"orders_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"),
+                                           caption="📋 Детальный отчет по заказам")
 
-async def send_sales_report(message: Message, state: FSMContext, sales: list[Sale], title: str):
-    report = f"{title}:\n\n"
-    report += f"Всего продаж: *{len(sales)}*\n"
-    report += f"Общая сумма: *{sum(sale.total for sale in sales)} грн*\n"
-    report += "📊 *Сводка по товарам:*\n\n"
-    for sale in sales[:10]:
-        report += sale.__str__() + "\n\n"
-
-    report_message = await message.answer(report, reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="📋 Получить детальный отчет", callback_data="get_detailed_report")]
-            ]
+    if report_message_id := data.get("report_message_id"):
+        await callback.bot.edit_message_reply_markup(
+            chat_id=callback.message.chat.id,
+            message_id=report_message_id,
+            reply_markup=None
         )
-    )
-    await state.update_data(report=report, last_sales=sales, report_message_id=report_message.message_id)
-    await message.answer("Выбери действие", reply_markup=get_sales_menu())
 
-async def return_to_sales_menu(message: Message, state: FSMContext):
-    await message.answer("Выберите отчет", reply_markup=get_sales_menu())
-    await state.clear()
+    await callback.answer()

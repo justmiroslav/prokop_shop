@@ -1,7 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-
-from utils.config import CONFIG
+from typing import Optional
 
 @dataclass
 class Product:
@@ -40,17 +39,41 @@ class Product:
 
 @dataclass
 class Sale:
-    data: datetime
+    id: str
     category: str
     product_name: str
     attribute: str
     amount: int
-    total: float
+    price: float
+    order_id: Optional[str] = None
+
+    @property
+    def total(self) -> float:
+        return self.amount * self.price
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.product_name} ({self.attribute})"
 
     def __str__(self):
-        attribute = CONFIG.ATTRIBUTE_MAP.get(CONFIG.PRODUCT_CATEGORIES[self.category])
-        attribute_emoji = CONFIG.ATTRIBUTE_EMOJIS.get(attribute)
         return (
-            f"🏷️ Товар: {self.product_name}, {attribute} {attribute_emoji}: {self.attribute}\n"
-            f"📦 Количество: {self.amount} шт, 🕒 дата: {self.data}"
+            f"🏷️ Товар: {self.full_name}\n📦 Количество: {self.amount} шт, Цена: {self.price} грн\n"
+        )
+
+@dataclass
+class Order:
+    row: int
+    id: str
+    date: datetime
+    sales: list[Sale] = field(default_factory=list)
+
+    @property
+    def total(self) -> float:
+        return sum(sale.total for sale in self.sales)
+
+    def __str__(self):
+        return (
+            f"🛒 Заказ № {self.id}\n"
+            f"📅 Дата: {self.date.strftime("%d.%m.%Y %H:%M:%S")}\n"
+            f"💰 Сумма заказа: {self.total} грн"
         )

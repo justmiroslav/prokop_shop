@@ -12,8 +12,9 @@ class Config:
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
     CREDENTIALS_FILE = "repository/credentials.json"
     SHEET_SALES = "Продажи"
+    SHEET_ORDERS = "Заказы"
 
-    EXCLUDED_SHEETS = ["Товарка", SHEET_SALES]
+    EXCLUDED_SHEETS = ["Товарка", SHEET_SALES, SHEET_ORDERS]
 
     COL_PRODUCT = 0
     COL_ATTRIBUTE = 1
@@ -41,12 +42,6 @@ class Config:
         "Cмак": "вкус",
         "Колір": "цвет",
         "Опір": "сопротивление"
-    }
-
-    ATTRIBUTE_EMOJIS = {
-        "цвет": "🎨",
-        "вкус": "🍏",
-        "сопротивление": "🔌"
     }
 
 CONFIG = Config()
