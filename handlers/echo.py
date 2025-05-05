@@ -2,42 +2,34 @@ from aiogram import Router
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from utils.keybords import get_main_menu, get_operations_menu, get_statistics_keyboard
-from utils.states import SaleStates
+from utils.keyboards import get_main_menu, get_orders_menu, get_products_menu, get_statistics_keyboard
 
 router = Router()
 
 @router.message()
 async def echo_handler(message: Message, state: FSMContext):
-    cur_state = await state.get_state()
     data = await state.get_data()
     context = data.get("context", "main")
     inline_message_id = data.get("inline_message_id")
 
     if inline_message_id:
-        await message.bot.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=inline_message_id,
-            text="Операция отменена"
+        await message.bot.edit_message_text(chat_id=message.chat.id,
+            message_id=inline_message_id, text="Операция отменена"
         )
-        await message.answer("Выберите действие", reply_markup=get_operations_menu())
+        await message.answer("Выбери действие", reply_markup=get_orders_menu())
         await state.clear()
-        await state.update_data(context="operations")
+        await state.update_data(context="orders")
         return
 
-    if cur_state:
-        if cur_state == SaleStates.SELECT_PERIOD:
-            reply_kb = get_statistics_keyboard()
-        elif cur_state.startswith("ProductStates"):
-            reply_kb = get_operations_menu()
-        else:
-            reply_kb = get_main_menu()
+    if context == "orders":
+        reply_markup = get_orders_menu()
+    elif context == "products":
+        reply_markup = get_products_menu()
+    elif context == "statistics":
+        reply_markup = get_statistics_keyboard()
     else:
-        if context == "operations":
-            reply_kb = get_operations_menu()
-        elif context == "sales":
-            reply_kb = get_statistics_keyboard()
-        else:
-            reply_kb = get_main_menu()
+        reply_markup = get_main_menu()
 
-    await message.answer("Я не понимаю эту команду", reply_markup=reply_kb)
+    await message.answer("Я не понимаю эту команду", reply_markup=reply_markup)
+
+

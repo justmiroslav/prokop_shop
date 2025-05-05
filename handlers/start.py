@@ -3,10 +3,10 @@ from aiogram.types import Message
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 
-from utils.keybords import get_main_menu, get_operations_menu
-from auth_manager import auth_manager
-from utils.states import AuthStates
+from utils.keyboards import get_main_menu, get_orders_menu, get_products_menu, get_statistics_keyboard
+from utils.states import AuthStates, StatisticsStates
 from utils.config import CONFIG
+from auth_manager import auth_manager
 
 router = Router()
 
@@ -60,12 +60,15 @@ async def back_to_prev_menu(message: Message, state: FSMContext):
     cur_state = await state.get_state()
 
     if cur_state:
-        if cur_state.startswith("Sale"):
+        if cur_state.startswith("Statistic"):
             context = "main"
             reply_kb = get_main_menu()
+        elif cur_state.startswith("Order"):
+            context = "orders"
+            reply_kb = get_main_menu()
         else:
-            context = "operations"
-            reply_kb = get_operations_menu()
+            context = "products"
+            reply_kb = get_products_menu()
     else:
         context = "main"
         reply_kb = get_main_menu()
@@ -74,7 +77,18 @@ async def back_to_prev_menu(message: Message, state: FSMContext):
     await state.update_data(context=context)
     await message.answer("Выбери опцию", reply_markup=reply_kb)
 
-@router.message(F.text == "🛒 Действия")
-async def operations_menu(message: Message, state: FSMContext):
-    await state.update_data(context="operations")
-    await message.answer("Выбери опцию с товарами", reply_markup=get_operations_menu())
+@router.message(F.text == "🛒 Заказы")
+async def orders_menu(message: Message, state: FSMContext):
+    await state.update_data(context="orders")
+    await message.answer("Меню заказов", reply_markup=get_orders_menu())
+
+@router.message(F.text == "📦 Товары")
+async def products_menu(message: Message, state: FSMContext):
+    await state.update_data(context="products")
+    await message.answer("Меню товаров", reply_markup=get_products_menu())
+
+@router.message(F.text == "📊 Статистика")
+async def statistics_menu(message: Message, state: FSMContext):
+    await state.update_data(context="statistics")
+    await message.answer("Выберите период для статистики", reply_markup=get_statistics_keyboard())
+    await state.set_state(StatisticsStates.SELECT_PERIOD)

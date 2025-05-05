@@ -4,42 +4,40 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
+from database.session import init_db, Session
 from repository.sheets import SheetManager
-from handlers import start, operations, sales, echo
+from middleware import DependencyMiddleware
+from handlers import start, orders, statistics, echo
 
 async def main():
+    init_db()
+
     bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     await bot.delete_webhook(drop_pending_updates=True)
 
     storage = MemoryStorage()
-    sheet_manager = SheetManager()
-    await sheet_manager.start_periodic_refresh()
-
     dp = Dispatcher(storage=storage)
-    dp.message.middleware(SheetManagerMiddleware(sheet_manager))
-    dp.callback_query.middleware(SheetManagerMiddleware(sheet_manager))
+
+    session = Session()
+    sheet_manager = SheetManager(session)
+    await sheet_manager.start_periodic_refresh()
+    dp.update.middleware(DependencyMiddleware(sheet_manager))
 
     dp.include_router(start.router)
-    dp.include_router(operations.router)
-    dp.include_router(sales.router)
+    dp.include_router(orders.router)
+    dp.include_router(statistics.router)
     dp.include_router(echo.router)
 
     try:
+        logging.info("Starting bot")
         await dp.start_polling(bot)
     finally:
         await sheet_manager.stop_periodic_refresh()
+        session.close()
         await bot.session.close()
 
-class SheetManagerMiddleware:
-    def __init__(self, sheet_manager):
-        self.sheet_manager = sheet_manager
-
-    async def __call__(self, handler, event, data):
-        data["sheet_manager"] = self.sheet_manager
-        return await handler(event, data)
-
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     try:
         asyncio.run(main())
     except Exception as e:

@@ -1,24 +1,20 @@
-import gspread, logging, asyncio, uuid
+import gspread, logging, asyncio
 from google.oauth2.service_account import Credentials
-from typing import Optional, List
-from datetime import datetime
+from sqlalchemy.orm import Session
 
 from utils.config import CONFIG
-from utils.models import Product, Sale, Order
+from database.models import Product
+from repository.product_repository import ProductRepository
 
 class SheetManager:
-    def __init__(self):
+    def __init__(self, db_session: Session):
         self.client = self.get_client()
         self.sheet = self.client.open_by_key(CONFIG.SHEET_ID)
-        self.product_sheets = None
-        self.product_sheet_data = None
+        self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if sheet.title != CONFIG.EXCLUDED_SHEET}
+        self.product_repo = ProductRepository(db_session)
+        self.db_session = db_session
         self.periodic_refresh_task = None
-
-        self.sales: dict[str, Sale] = {}
-        self.sales_sheet = self.sheet.worksheet(CONFIG.SHEET_SALES)
-        self.orders: dict[str, Order] = {}
-        self.orders_sheet = self.sheet.worksheet(CONFIG.SHEET_ORDERS)
-        self.get_fresh_data()
+        self.sync_products()
 
     @staticmethod
     def get_client() -> gspread.Client:
@@ -26,232 +22,100 @@ class SheetManager:
         creds = Credentials.from_service_account_file(CONFIG.CREDENTIALS_FILE, scopes=CONFIG.SCOPES)
         return gspread.authorize(creds)
 
-    def get_fresh_data(self):
-        """Get fresh data from Google Sheets"""
+    def sync_products(self):
+        """Synchronize products from Google Sheets to the database"""
         try:
-            self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if
-                                   sheet.title not in CONFIG.EXCLUDED_SHEETS}
-            self.product_sheet_data = {sheet: self.get_product_sheet_data(sheet) for sheet in
-                                       self.product_sheets.keys()}
-            self.map_categories_attribute()
-            self.load_sales()
-            self.load_orders()
+            for sheet_name, worksheet in self.product_sheets.items():
+                header = worksheet.row_values(1)
+                CONFIG.PRODUCT_CATEGORIES[sheet_name] = header[CONFIG.COL_ATTRIBUTE]
+                self._sync_sheet_products(sheet_name, worksheet)
+
+            logging.info("Products synchronized from Google Sheets")
         except Exception as e:
-            logging.error(f"Error refreshing data: {e}")
+            logging.error(f"Error syncing products: {e}")
 
-    def map_categories_attribute(self) -> None:
-        """Map categories to attributes"""
-        for sheet_name, worksheet in self.product_sheets.items():
-            header = worksheet.row_values(1)
-            CONFIG.PRODUCT_CATEGORIES[sheet_name] = header[CONFIG.COL_ATTRIBUTE]
-
-    def get_product_sheet_data(self, sheet_name: str) -> dict[str, Product]:
-        """Get all products from a specific category"""
+    def _sync_sheet_products(self, sheet_name: str, worksheet: gspread.Worksheet):
+        """Sync products from a specific worksheet"""
         try:
-            worksheet = self.product_sheets[sheet_name]
             data = worksheet.get_all_values()
+            if len(data) <= 1:
+                return
 
-            products: dict[str, Product] = {}
             for i, row in enumerate(data[1:], start=2):
-                if len(row) < CONFIG.COL_PRICE + 1:
+                if len(row) < CONFIG.COL_COST + 1:
                     continue
-                products[str(i)] = Product(row=i,
-                    name=row[CONFIG.COL_PRODUCT],
-                    attribute=row[CONFIG.COL_ATTRIBUTE],
-                    available=int(row[CONFIG.COL_AVAILABLE]),
-                    reserved=int(row[CONFIG.COL_RESERVED]),
-                    price=float(row[CONFIG.COL_PRICE])
-                )
 
-            return products
+                try:
+                    name = row[CONFIG.COL_PRODUCT]
+                    attribute = row[CONFIG.COL_ATTRIBUTE]
+                    quantity = int(row[CONFIG.COL_QUANTITY])
+                    price = float(row[CONFIG.COL_PRICE])
+                    cost = float(row[CONFIG.COL_COST])
+
+                    product = self.product_repo.get_by_sheet_info(sheet_name, i)
+
+                    if product:
+                        if (product.name != name or
+                                product.attribute != attribute or
+                                product.quantity != quantity or
+                                product.price != price or
+                                product.cost != cost):
+
+                            product.name = name
+                            product.attribute = attribute
+                            product.quantity = quantity
+                            product.price = price
+                            product.cost = cost
+                            self.product_repo.update(product)
+                    else:
+                        product = Product(
+                            sheet_name=sheet_name,
+                            sheet_row=i,
+                            name=name,
+                            attribute=attribute,
+                            quantity=quantity,
+                            price=price,
+                            cost=cost
+                        )
+                        self.product_repo.create(product)
+
+                except (ValueError, IndexError) as e:
+                    logging.warning(f"Error processing row {i} in sheet {sheet_name}: {e}")
+
         except Exception as e:
-            logging.error(f"Error getting products: {e}")
-            return {}
+            logging.error(f"Error syncing sheet {sheet_name}: {e}")
 
-    def load_sales(self) -> None:
-        """Load sales from the sales sheet"""
+    def update_product_quantity(self, product: Product, new_quantity: int) -> bool:
+        """Update product quantity in Google Sheets and database"""
         try:
-            sales_data = self.sales_sheet.get_all_values()
+            if product.sheet_name not in self.product_sheets:
+                return False
 
-            if len(sales_data) <= 1:
-                return
+            worksheet = self.product_sheets[product.sheet_name]
 
-            for row in sales_data[1:]:
-                if len(row) < 5:
-                    continue
-                name, attribute = row[2].split(" (")
-                sale = Sale(id=row[0], category=row[1], product_name=name,
-                    attribute=attribute[:-1], amount=int(row[3]), price=float(row[4]))
-                self.sales[row[0]] = sale
-        except Exception as e:
-            logging.error(f"Error loading sales: {e}")
-
-    def load_orders(self) -> None:
-        """Load orders from the orders sheet"""
-        try:
-            orders_data = self.orders_sheet.get_all_values()
-
-            if len(orders_data) <= 1:
-                return
-
-            for i, row in enumerate(orders_data[1:], start=2):
-                if len(row) < 4:
-                    continue
-                order_id = row[0]
-                order = Order(row=i, id=order_id, date=datetime.strptime(row[1], "%d.%m.%Y %H:%M:%S"), sales=[])
-                self.orders[order_id] = order
-
-                sales_ids = row[3].split(", ")
-                for sale_id in sales_ids:
-                    sale = self.sales.get(sale_id)
-                    if sale:
-                        order.sales.append(sale)
-        except Exception as e:
-            logging.error(f"Error loading orders: {e}")
-
-    @staticmethod
-    def get_condition(action: str, product: Product) -> bool:
-        """Get conditions for product selection"""
-        if action == "release":
-            return product.reserved > 0
-        elif action == "buy":
-            return (product.available + product.reserved) > 0
-        elif action == "reserve":
-            return product.available > 0
-        else:
+            worksheet.update_cell(product.sheet_row, CONFIG.COL_QUANTITY + 1, new_quantity)
+            product.quantity = new_quantity
+            self.product_repo.update(product)
             return True
+        except Exception as e:
+            logging.error(f"Error updating product quantity: {e}")
+            return False
 
-    def get_product_names(self, sheet_name: str, action: str) -> set[str]:
-        """Get unique product names that have at least one variant meeting the condition"""
-        return {product.name for product in self.product_sheet_data[sheet_name].values() if
-                self.get_condition(action, product)}
-
-    def get_product_attributes(self, sheet_name: str, product_name: str, action: str) -> list[str]:
-        """Get all product attributes from a specific category"""
-        return [product.attribute for product in self.product_sheet_data[sheet_name].values() if
-                product.name == product_name and self.get_condition(action, product)]
-
-    def update_product(self, sheet_name: str, product: Product, update_sec: bool = True) -> None:
-        """Update a product cell"""
-        worksheet = self.product_sheets[sheet_name]
-        worksheet.update_cell(product.row, CONFIG.COL_AVAILABLE + 1, product.available)
-        if update_sec:
-            worksheet.update_cell(product.row, CONFIG.COL_RESERVED + 1, product.reserved)
-        self.product_sheet_data[sheet_name][str(product.row)] = product
-
-    def find_product(self, sheet_name: str, product_name: str, attribute: str) -> Optional[Product]:
-        """Find a product by name and attribute"""
-        products = self.product_sheet_data[sheet_name].values()
-        return next(
-            (product for product in products if product.name == product_name and product.attribute == attribute), None)
-
-    def reserve_product_amount(self, sheet_name: str, product: Product, amount: int):
-        """Reserve a product"""
-        product.reserve(amount)
-        self.update_product(sheet_name, product)
-
-    def release_product_amount(self, sheet_name: str, product: Product, amount: int) -> None:
-        """Release a product"""
-        product.release(amount)
-        self.update_product(sheet_name, product)
-
-    def add_product_amount(self, sheet_name: str, product: Product, amount: int) -> None:
-        """Add a product"""
-        product.add_product(amount)
-        self.update_product(sheet_name, product, update_sec=False)
-
-    def buy_product_amount(self, sheet_name: str, product: Product, amount: int, order_id: Optional[str] = None) -> Sale:
-        """Buy a product and return the sale object"""
-        product.buy(amount)
-        self.update_product(sheet_name, product)
-        return self.record_sale(sheet_name, product, amount, order_id)
-
-    def record_sale(self, sheet_name: str, product: Product, amount: int, order_id: Optional[str] = None) -> Sale:
-        """Record a sale and return the sale object"""
-        sales_data = self.sales_sheet.get_all_values()
-
-        first_row = sales_data[0] if sales_data else []
-        if not first_row or first_row[0] != "ID":
-            if sales_data:
-                self.sales_sheet.clear()
-            self.sales_sheet.append_row(["ID", "Категория", "Товар", "Количество", "Цена"])
-
-        sale_id = str(uuid.uuid4())[:8]
-        sale = Sale(id=sale_id, category=sheet_name, product_name=product.name, attribute=product.attribute,
-            amount=amount, price=product.price, order_id=order_id)
-
-        self.sales[sale_id] = sale
-        self.sales_sheet.append_row([sale_id, sheet_name, sale.full_name, amount, product.price])
-        return sale
-
-    def create_order(self, sales: List[Sale]) -> Order:
-        """Create a new order with the given sales"""
-        orders_data = self.orders_sheet.get_all_values()
-
-        first_row = orders_data[0] if orders_data else []
-        if not first_row or first_row[0] != "ID":
-            if orders_data:
-                self.orders_sheet.clear()
-            self.orders_sheet.append_row(["ID", "Дата", "Сума", "Товары"])
-            row_index = 2
-        else:
-            row_index = len(orders_data) + 1
-
-        order_id = str(uuid.uuid4())[:8]
-        timestamp = datetime.now()
-        order = Order(row=row_index, id=order_id, date=timestamp, sales=sales)
-
-        for sale in sales:
-            sale.order_id = order_id
-            self.sales[sale.id] = sale
-
-        self.orders[order_id] = order
-        self.orders_sheet.append_row([order_id, timestamp.strftime("%d.%m.%Y %H:%M:%S"), order.total,
-            ", ".join([f"{sale.id}" for sale in sales])])
-        return order
-
-    def add_to_order(self, order_id: str, sale: Sale) -> Optional[Order]:
-        """Add a sale to an existing order"""
-        order = self.orders.get(order_id)
-        if not order:
-            return None
-
-        sale.order_id = order_id
-        self.sales[sale.id] = sale
-
-        order.sales.append(sale)
-        self.orders[order_id] = order
-
-        self.orders_sheet.update_cell(order.row, 3, order.total)
-        self.orders_sheet.update_cell(order.row, 4, ", ".join(sale.id for sale in order.sales))
-        return order
-
-    def get_sale_by_id(self, sale_id: str) -> Optional[Sale]:
-        """Get sale by ID"""
-        return self.sales.get(sale_id)
-
-    def get_all_order_ids(self) -> list[str]:
-        return list(self.orders.keys())
-
-    def get_orders_by_date(self, start_date: datetime, end_date: datetime) -> list[Order]:
-        """Get orders between two dates from cache"""
-        return [order for order in self.orders.values() if start_date <= order.date <= end_date]
-
-    async def start_periodic_refresh(self, interval_seconds=20):
-        """Запустить задачу периодического обновления"""
+    async def start_periodic_refresh(self, interval_seconds=15):
+        """Start periodic refresh task"""
         self.periodic_refresh_task = asyncio.create_task(self._periodic_refresh(interval_seconds))
 
     async def stop_periodic_refresh(self):
-        """Остановить задачу периодического обновления"""
+        """Stop periodic refresh task"""
         if self.periodic_refresh_task:
             self.periodic_refresh_task.cancel()
             self.periodic_refresh_task = None
 
     async def _periodic_refresh(self, interval_seconds):
-        """Периодически обновлять данные"""
+        """Periodically refresh data from Google Sheets"""
         while True:
             await asyncio.sleep(interval_seconds)
             try:
-                self.get_fresh_data()
+                self.sync_products()
             except Exception as e:
-                logging.error(f"Ошибка обновления данных: {e}")
+                logging.error(f"Error during periodic refresh: {e}")
