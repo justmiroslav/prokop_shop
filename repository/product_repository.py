@@ -55,17 +55,23 @@ class ProductRepository:
         """Get all unique product categories"""
         return [r[0] for r in self.session.query(Product.sheet_name).distinct()]
 
-    def get_unique_product_names(self, category: str) -> List[str]:
-        """Get all unique product names in a category with quantity > 0"""
-        return [r[0] for r in self.session.query(Product.name).filter(
-            Product.sheet_name == category,
-            Product.quantity > 0
-        ).distinct()]
+    def get_unique_product_names(self, category: str, include_zero_qty: bool = False) -> List[str]:
+        """Get all unique product names in a category, optionally including zero quantity"""
+        query = self.session.query(Product.name).filter(Product.sheet_name == category)
 
-    def get_attributes_by_product(self, category: str, product_name: str) -> List[str]:
-        """Get all attributes for a product with quantity > 0"""
-        return [r[0] for r in self.session.query(Product.attribute).filter(
+        if not include_zero_qty:
+            query = query.filter(Product.quantity > 0)
+
+        return [r[0] for r in query.distinct()]
+
+    def get_attributes_by_product(self, category: str, product_name: str, include_zero_qty: bool = False) -> List[str]:
+        """Get all attributes for a product, optionally including zero quantity"""
+        query = self.session.query(Product.attribute).filter(
             Product.sheet_name == category,
-            Product.name == product_name,
-            Product.quantity > 0
-        )]
+            Product.name == product_name
+        )
+
+        if not include_zero_qty:
+            query = query.filter(Product.quantity > 0)
+
+        return [r[0] for r in query]

@@ -14,7 +14,9 @@ class SheetManager:
         self.product_repo = ProductRepository(db_session)
         self.db_session = db_session
         self.periodic_refresh_task = None
-        self.sync_products()
+        for sheet_name, worksheet in self.product_sheets.items():
+            header = worksheet.row_values(1)
+            CONFIG.PRODUCT_CATEGORIES[sheet_name] = header[CONFIG.COL_ATTRIBUTE]
 
     @staticmethod
     def get_client() -> gspread.Client:
@@ -26,8 +28,6 @@ class SheetManager:
         """Synchronize products from Google Sheets to the database"""
         try:
             for sheet_name, worksheet in self.product_sheets.items():
-                header = worksheet.row_values(1)
-                CONFIG.PRODUCT_CATEGORIES[sheet_name] = header[CONFIG.COL_ATTRIBUTE]
                 self._sync_sheet_products(sheet_name, worksheet)
 
             logging.info("Products synchronized from Google Sheets")
@@ -103,7 +103,7 @@ class SheetManager:
 
     async def start_periodic_refresh(self, interval_seconds=15):
         """Start periodic refresh task"""
-        self.periodic_refresh_task = asyncio.create_task(self._periodic_refresh(interval_seconds))
+        self.periodic_refresh_task = asyncio.create_task(self.periodic_refresh(interval_seconds))
 
     async def stop_periodic_refresh(self):
         """Stop periodic refresh task"""
@@ -111,7 +111,7 @@ class SheetManager:
             self.periodic_refresh_task.cancel()
             self.periodic_refresh_task = None
 
-    async def _periodic_refresh(self, interval_seconds):
+    async def periodic_refresh(self, interval_seconds):
         """Periodically refresh data from Google Sheets"""
         while True:
             await asyncio.sleep(interval_seconds)

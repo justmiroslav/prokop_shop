@@ -17,7 +17,7 @@ def format_order_msg(order: Order) -> str:
     order_text = "Товары:\n"
 
     for i, item in enumerate(order.items, 1):
-        order_text += f"{i}. {item.product.full_name} x{item.quantity} - {item.price * item.quantity} грн\n"
+        order_text += f"- {item.product.full_name} x{item.quantity} - {item.price * item.quantity} грн\n"
 
     return order_text + f"\nСума: {order.total} грн, Прибыль: {order.profit} грн"
 
@@ -32,7 +32,7 @@ async def new_order(message: Message, state: FSMContext, order_service: OrderSer
 
     order = order_service.create_order()
     response = await message.answer(
-        f"Создан новый заказ {order.id}\n\nВыбери категорию товара",
+        f"Открыт новый заказ {order.id}\n\nВыбери категорию товара",
         reply_markup=get_category_keyboard()
     )
 
@@ -124,8 +124,10 @@ async def select_category(callback: CallbackQuery, state: FSMContext, product_se
     """Handle category selection"""
     category = callback.data.split(":")[1]
     await state.update_data(category=category)
+    data = await state.get_data()
+    action = data.get("action")
 
-    product_names = product_service.get_product_names(category)
+    product_names = product_service.get_product_names(category, action)
     if not product_names:
         empty_keyboard = InlineKeyboardMarkup(inline_keyboard=[get_additional_row("back_to_categories")])
         await callback.message.edit_text(f"В этой категории нет подходящих товаров", reply_markup=empty_keyboard)
@@ -144,10 +146,11 @@ async def select_product(callback: CallbackQuery, state: FSMContext, product_ser
     product_name = callback.data.split(":")[1]
     data = await state.get_data()
     category = data.get("category")
+    action = data.get("action")
 
     await state.update_data(product_name=product_name)
 
-    attributes = product_service.get_attributes(category, product_name)
+    attributes = product_service.get_attributes(category, product_name, action)
     await callback.message.edit_text(
         f"Выбери {CONFIG.ATTRIBUTE_MAP[CONFIG.PRODUCT_CATEGORIES[category]]} товара *\"{product_name}\"*",
         reply_markup=get_attribute_keyboard(attributes)
@@ -169,7 +172,7 @@ async def select_attribute(callback: CallbackQuery, state: FSMContext, product_s
 
     await callback.message.edit_text(
         f"Выбери количество товара *\"{product.full_name}*\"\n",
-        reply_markup=get_quantity_keyboard(max_qty)
+        reply_markup=get_quantity_keyboard(max_qty, "back_to_attributes")
     )
 
     await callback.answer()
@@ -179,7 +182,7 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
     """Handle quantity selection"""
     quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
-    category, product_name, attribute, order_id, action = data.get("category"), data.get("product_name"), data.get("attribute"), data.get("order_id"), data.get("action")
+    category, product_name, attribute, action = data.get("category"), data.get("product_name"), data.get("attribute"), data.get("action")
 
     product = product_service.get_product(category, product_name, attribute)
 
@@ -204,7 +207,9 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
         await state.clear()
         await callback.answer()
+        return
 
+    order_id = data.get("order_id")
     order = order_service.get_order(order_id)
     success, item, message = order_service.add_product_to_order(order, product, quantity)
     if not success:
@@ -223,12 +228,12 @@ async def handle_order_continue(callback: CallbackQuery, state: FSMContext, orde
     action = callback.data.split(":")[1]
     data = await state.get_data()
     order_id = data.get("order_id")
+    order = order_service.get_order(order_id)
 
     if action == "add_more":
-        await callback.message.edit_text("Выберите категорию товара:", reply_markup=get_category_keyboard())
+        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери категорию товара", reply_markup=get_category_keyboard())
 
     elif action == "finish":
-        order = order_service.get_order(order_id)
         if order.items:
             await callback.message.edit_text(f"✅ Заказ {order.id} успешно создан!\n\n"
                 f"Сумма заказа: {order.total} грн"
@@ -246,7 +251,7 @@ async def view_order(callback: CallbackQuery, order_service: OrderService):
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
     await callback.message.edit_text(order_text)
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await callback.answer()
@@ -289,7 +294,7 @@ async def edit_order(callback: CallbackQuery, state: FSMContext, order_service: 
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order) + "\n\nВыбери действие"
+    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order) + "\n\nВыбери действие"
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await state.update_data(edit_order_id=order.id)
     await callback.answer()
@@ -316,9 +321,7 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
 
     elif action == "add_item":
         await state.update_data(action="edit_order")
-        await callback.message.edit_text("Выбери категорию товара:",
-            reply_markup=get_category_keyboard()
-        )
+        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери категорию товара", reply_markup=get_category_keyboard())
 
     elif action == "finish":
         upd_order = order_service.get_order(order_id)
@@ -338,7 +341,7 @@ async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_r
 
     await callback.message.edit_text(f"Товар: {item.product.full_name}\n\n"
         f"Текущее количество: {item.quantity}\n",
-        reply_markup=get_quantity_keyboard(min(item.quantity + item.product.quantity, 10))
+        reply_markup=get_quantity_keyboard(min(item.quantity + item.product.quantity, 10), "back_to_order_items")
     )
 
     await state.update_data(edit_item_id=item.id)
@@ -403,19 +406,38 @@ async def back_to_order_actions(callback: CallbackQuery, state: FSMContext, orde
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await callback.answer()
 
+@router.callback_query(F.data == "back_to_order_items")
+async def back_to_order_items(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
+    """Go back to order items"""
+    data = await state.get_data()
+    order_id = data.get("edit_order_id")
+
+    order = order_service.get_order(order_id)
+    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+    await callback.message.edit_text(order_text, reply_markup=get_order_items_keyboard(order.items, "edit_item"))
+    await callback.answer()
+
 @router.callback_query(F.data == "back_to_categories")
-async def back_to_categories(callback: CallbackQuery):
+async def back_to_categories(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Go back to categories selection"""
-    await callback.message.edit_text("Выбери категорию товара", reply_markup=get_category_keyboard())
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    if order_id:
+        order = order_service.get_order(order_id)
+        order_text = f"Заказ {order_id}\n\n" + format_order_msg(order)
+    else:
+        order_text = "Выбери категорию товара"
+
+    await callback.message.edit_text(order_text, reply_markup=get_category_keyboard())
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_products")
 async def back_to_products(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
     """Go back to products selection"""
     data = await state.get_data()
-    category = data.get("category")
+    category, action = data.get("category"), data.get("action")
 
-    product_names = product_service.get_product_names(category)
+    product_names = product_service.get_product_names(category, action)
     await callback.message.edit_text(f"Товары в категории *\"{category}\"*",
         reply_markup=get_product_keyboard(product_names)
     )
@@ -428,8 +450,9 @@ async def back_to_attributes(callback: CallbackQuery, state: FSMContext, product
     data = await state.get_data()
     category = data.get("category")
     product_name = data.get("product_name")
+    action = data.get("action")
 
-    attributes = product_service.get_attributes(category, product_name)
+    attributes = product_service.get_attributes(category, product_name, action)
     await callback.message.edit_text(
         f"Выбери {CONFIG.ATTRIBUTE_MAP[CONFIG.PRODUCT_CATEGORIES[category]]} товара *\"{product_name}\"*",
         reply_markup=get_attribute_keyboard(attributes)

@@ -12,13 +12,13 @@ class ProductService:
         """Get all available product categories"""
         return self.product_repo.get_unique_categories()
 
-    def get_product_names(self, category: str) -> List[str]:
-        """Get all product names in a category that have quantity > 0"""
-        return self.product_repo.get_unique_product_names(category)
+    def get_product_names(self, category: str, action: str = None) -> List[str]:
+        """Get product names in a category"""
+        return self.product_repo.get_unique_product_names(category,  action == "add")
 
-    def get_attributes(self, category: str, product_name: str) -> List[str]:
+    def get_attributes(self, category: str, product_name: str, action: str) -> List[str]:
         """Get all attributes for a product that have quantity > 0"""
-        return self.product_repo.get_attributes_by_product(category, product_name)
+        return self.product_repo.get_attributes_by_product(category, product_name, action == "add")
 
     def get_product(self, category: str, product_name: str, attribute: str) -> Optional[Product]:
         """Find a product by category, name and attribute"""

@@ -70,13 +70,13 @@ def get_attribute_keyboard(attributes: List[str]) -> InlineKeyboardMarkup:
     keyboard.append(get_additional_row("back_to_products"))
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_quantity_keyboard(max_qty: int) -> InlineKeyboardMarkup:
+def get_quantity_keyboard(max_qty: int, callback_str: str) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=str(i), callback_data=f"quantity:{i}")
         for i in range(1, min(max_qty + 1, 10))
     ]
     keyboard = format_inline_kb(buttons, 3)
-    keyboard.append(get_additional_row("back_to_attributes"))
+    keyboard.append(get_additional_row(callback_str))
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_order_continue_keyboard() -> InlineKeyboardMarkup:
@@ -88,17 +88,17 @@ def get_order_continue_keyboard() -> InlineKeyboardMarkup:
 
 def get_order_actions_keyboard() -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
         InlineKeyboardButton(text="➖ Удалить товар", callback_data="order_action:remove_item"),
         InlineKeyboardButton(text="➕ Добавить товар", callback_data="order_action:add_item"),
+        InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
         InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="order_action:finish")
     ]
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons, 2))
 
 def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardMarkup:
     buttons = []
-    for i, item in enumerate(order_items, 1):
-        text = f"{i}. {item.product.full_name} - x{item.quantity}"
+    for item in order_items:
+        text = f"{item.product.full_name} - x{item.quantity}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
     keyboard = format_inline_kb(buttons, 1)

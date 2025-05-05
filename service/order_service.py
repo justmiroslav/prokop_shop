@@ -39,12 +39,10 @@ class OrderService:
         if product.quantity < quantity:
             return False, None, f"Недостаточно товара в наличии. Доступно: {product.quantity}"
 
-        # Reduce product quantity
         success = self.product_service.remove_quantity(product, quantity)
         if not success:
             return False, None, "Ошибка при обновлении количества товара"
 
-        # Add to order
         order_item = self.order_repo.add_item(
             order, product.id, quantity, product.price, product.cost
         )

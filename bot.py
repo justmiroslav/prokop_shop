@@ -20,7 +20,8 @@ async def main():
 
     session = Session()
     sheet_manager = SheetManager(session)
-    await sheet_manager.start_periodic_refresh()
+
+    asyncio.create_task(sheet_manager.start_periodic_refresh())
     dp.update.middleware(DependencyMiddleware(sheet_manager))
 
     dp.include_router(start.router)
