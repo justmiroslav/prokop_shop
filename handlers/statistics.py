@@ -1,33 +1,18 @@
 from aiogram import Router
 from aiogram.types import Message, BufferedInputFile
-from aiogram.fsm.context import FSMContext
 from io import StringIO
 
-from utils.keyboards import get_statistics_keyboard, get_main_menu
+from utils.keyboards import get_statistics_keyboard
+from utils.config import CONFIG
 from utils.states import StatisticsStates
 from service.order_service import OrderService
 
 router = Router()
 
 @router.message(StatisticsStates.SELECT_PERIOD)
-async def show_statistics(message: Message, state: FSMContext, order_service: OrderService):
+async def show_statistics(message: Message, order_service: OrderService):
     """Show statistics for a period"""
-    text = message.text
-
-    if text == "🔙 Назад":
-        await message.answer("Выберите действие", reply_markup=get_main_menu())
-        await state.update_data(context="main")
-        await state.clear()
-        return
-
-    period_map = {
-        "📅 Сегодня": "today",
-        "📅 Вчера": "yesterday",
-        "📅 Эта неделя": "week",
-        "📅 Этот месяц": "month"
-    }
-
-    period = period_map.get(message.text)
+    period = CONFIG.PERIOD_MAP[message.text]
     if not period:
         await message.answer("Неизвестный период", reply_markup=get_statistics_keyboard())
         return
@@ -47,9 +32,9 @@ async def show_statistics(message: Message, state: FSMContext, order_service: Or
         return
 
     stats_text = f"📊 *Статистика за {period_name}*\n\n"
-    stats_text += f"Всего заказов: *{stats["count"]}*\n"
-    stats_text += f"Общая выручка: *{stats["gross_revenue"]:.2f} грн*\n"
-    stats_text += f"Чистая прибыль: *{stats["net_profit"]:.2f} грн*\n\n"
+    stats_text += f"Всего заказов: *{stats["count"]}*\n\n"
+    stats_text += f"Общая выручка: *{stats["gross_revenue"]:.2f} грн*\n\n"
+    stats_text += f"Чистая прибыль: *{stats["net_profit"]:.2f} грн*"
 
     detailed_report = create_detailed_report(stats, period_name)
 
@@ -72,7 +57,7 @@ def create_detailed_report(stats, period_name):
     for order in stats["orders"]:
         detailed_report.write(f"Заказ #{order.id}\n")
         detailed_report.write(f"Дата завершения: {order.completed_at.strftime("%d.%m.%Y %H:%M")}\n")
-        detailed_report.write(f"Сумма: {order.total:.2f} грн\n")
+        detailed_report.write(f"Сумма: {order.total:.2f} грн\n\n")
         detailed_report.write(f"Прибыль: {order.profit:.2f} грн\n\n")
 
         detailed_report.write("Товары:\n")

@@ -7,14 +7,6 @@ class ProductRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_all(self) -> List[Product]:
-        """Get all products"""
-        return self.session.query(Product).all()
-
-    def get_by_category(self, category: str) -> List[Product]:
-        """Get products by category"""
-        return self.session.query(Product).filter(Product.sheet_name == category).all()
-
     def get_by_id(self, product_id: int) -> Optional[Product]:
         """Get product by ID"""
         return self.session.query(Product).filter(Product.id == product_id).first()
@@ -45,11 +37,6 @@ class ProductRepository:
         self.session.merge(product)
         self.session.commit()
         return product
-
-    def delete(self, product: Product) -> None:
-        """Delete a product"""
-        self.session.delete(product)
-        self.session.commit()
 
     def get_unique_categories(self) -> List[str]:
         """Get all unique product categories"""

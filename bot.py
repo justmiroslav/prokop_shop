@@ -7,7 +7,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from database.session import init_db, Session
 from repository.sheets import SheetManager
 from middleware import DependencyMiddleware
-from handlers import start, orders, statistics, echo
+from handlers import start, statistics, echo
+from handlers.menu import actions, edit_order_callbacks, navigation, order_action_callbacks, select_product_callbacks
 
 async def main():
     init_db()
@@ -25,7 +26,11 @@ async def main():
     dp.update.middleware(DependencyMiddleware(sheet_manager))
 
     dp.include_router(start.router)
-    dp.include_router(orders.router)
+    dp.include_router(actions.router)
+    dp.include_router(select_product_callbacks.router)
+    dp.include_router(order_action_callbacks.router)
+    dp.include_router(edit_order_callbacks.router)
+    dp.include_router(navigation.router)
     dp.include_router(statistics.router)
     dp.include_router(echo.router)
 

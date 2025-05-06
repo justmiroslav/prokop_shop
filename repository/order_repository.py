@@ -9,27 +9,15 @@ class OrderRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_all(self) -> List[Order]:
-        """Get all orders"""
-        return self.session.query(Order).all()
-
     def get_by_id(self, order_id: str) -> Optional[Order]:
         """Get order by ID"""
         return self.session.query(Order).filter(Order.id == order_id).first()
-
-    def get_active_orders(self) -> List[Order]:
-        """Get all active (pending) orders"""
-        return self.session.query(Order).filter(Order.status == OrderStatus.PENDING).all()
 
     def get_active_order_ids(self) -> List[str]:
         """Get all active order IDs"""
         return [order.id for order in self.session.query(Order.id).filter(
             Order.status == OrderStatus.PENDING
         ).all()]
-
-    def get_completed_orders(self) -> List[Order]:
-        """Get all completed orders"""
-        return self.session.query(Order).filter(Order.status == OrderStatus.COMPLETED).all()
 
     def get_completed_orders_by_period(self, start_date: datetime, end_date: datetime) -> List[Order]:
         """Get completed orders between two dates"""
@@ -90,10 +78,6 @@ class OrderRepository:
         """Delete an order"""
         self.session.delete(order)
         self.session.commit()
-
-    def get_order_items(self, order_id: str) -> List[OrderItem]:
-        """Get all items in an order"""
-        return self.session.query(OrderItem).filter(OrderItem.order_id == order_id).all()
 
     def get_order_item(self, item_id: int) -> Optional[OrderItem]:
         """Get order item by ID"""

@@ -14,10 +14,6 @@ class OrderService:
         """Create a new pending order"""
         return self.order_repo.create_order()
 
-    def get_active_orders(self) -> List[Order]:
-        """Get all active (pending) orders"""
-        return self.order_repo.get_active_orders()
-
     def get_active_order_ids(self) -> List[str]:
         """Get IDs of all active orders"""
         return self.order_repo.get_active_order_ids()

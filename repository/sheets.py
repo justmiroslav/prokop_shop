@@ -8,12 +8,14 @@ from repository.product_repository import ProductRepository
 
 class SheetManager:
     def __init__(self, db_session: Session):
+        self.db_session = db_session
+        self.product_repo = ProductRepository(db_session)
         self.client = self.get_client()
         self.sheet = self.client.open_by_key(CONFIG.SHEET_ID)
         self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if sheet.title != CONFIG.EXCLUDED_SHEET}
-        self.product_repo = ProductRepository(db_session)
-        self.db_session = db_session
         self.periodic_refresh_task = None
+        self.lock = asyncio.Semaphore(1)
+
         for sheet_name, worksheet in self.product_sheets.items():
             header = worksheet.row_values(1)
             CONFIG.PRODUCT_CATEGORIES[sheet_name] = header[CONFIG.COL_ATTRIBUTE]
@@ -29,7 +31,6 @@ class SheetManager:
         try:
             for sheet_name, worksheet in self.product_sheets.items():
                 self._sync_sheet_products(sheet_name, worksheet)
-
             logging.info("Products synchronized from Google Sheets")
         except Exception as e:
             logging.error(f"Error syncing products: {e}")
@@ -60,7 +61,6 @@ class SheetManager:
                                 product.quantity != quantity or
                                 product.price != price or
                                 product.cost != cost):
-
                             product.name = name
                             product.attribute = attribute
                             product.quantity = quantity
@@ -85,23 +85,35 @@ class SheetManager:
         except Exception as e:
             logging.error(f"Error syncing sheet {sheet_name}: {e}")
 
-    def update_product_quantity(self, product: Product, new_quantity: int) -> bool:
-        """Update product quantity in Google Sheets and database"""
-        try:
-            if product.sheet_name not in self.product_sheets:
+    async def update_product_quantity(self, product: Product, new_quantity: int) -> bool:
+        """Асинхронно обновляет количество товара в Google Sheets и БД"""
+        async with self.lock:
+            try:
+                if product.sheet_name not in self.product_sheets:
+                    return False
+
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None,
+                    self._update_sheet_quantity,
+                    product.sheet_name,
+                    product.sheet_row,
+                    new_quantity
+                )
+
+                product.quantity = new_quantity
+                self.product_repo.update(product)
+                return True
+            except Exception as e:
+                logging.error(f"Error updating product quantity: {e}")
                 return False
 
-            worksheet = self.product_sheets[product.sheet_name]
+    def _update_sheet_quantity(self, sheet_name: str, row: int, quantity: int):
+        """Обновляет количество в таблице (синхронный метод для run_in_executor)"""
+        worksheet = self.product_sheets[sheet_name]
+        worksheet.update_cell(row, CONFIG.COL_QUANTITY + 1, quantity)
 
-            worksheet.update_cell(product.sheet_row, CONFIG.COL_QUANTITY + 1, new_quantity)
-            product.quantity = new_quantity
-            self.product_repo.update(product)
-            return True
-        except Exception as e:
-            logging.error(f"Error updating product quantity: {e}")
-            return False
-
-    async def start_periodic_refresh(self, interval_seconds=15):
+    async def start_periodic_refresh(self, interval_seconds=30):
         """Start periodic refresh task"""
         self.periodic_refresh_task = asyncio.create_task(self.periodic_refresh(interval_seconds))
 
@@ -109,6 +121,10 @@ class SheetManager:
         """Stop periodic refresh task"""
         if self.periodic_refresh_task:
             self.periodic_refresh_task.cancel()
+            try:
+                await self.periodic_refresh_task
+            except asyncio.CancelledError:
+                pass
             self.periodic_refresh_task = None
 
     async def periodic_refresh(self, interval_seconds):
@@ -116,6 +132,8 @@ class SheetManager:
         while True:
             await asyncio.sleep(interval_seconds)
             try:
-                self.sync_products()
+                async with self.lock:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, self.sync_products)
             except Exception as e:
                 logging.error(f"Error during periodic refresh: {e}")

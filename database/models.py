@@ -14,13 +14,13 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True)
-    sheet_name = Column(String, nullable=False)  # Категория
-    sheet_row = Column(Integer, nullable=False)  # Строка в таблице
+    sheet_name = Column(String, nullable=False)
+    sheet_row = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     attribute = Column(String, nullable=False)
     quantity = Column(Integer, default=0)
     price = Column(Float, nullable=False)
-    cost = Column(Float, nullable=False)  # Себестоимость
+    cost = Column(Float, nullable=False)
 
     order_items = relationship("OrderItem", back_populates="product")
 

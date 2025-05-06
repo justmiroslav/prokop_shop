@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from urllib.parse import quote_plus
 from dataclasses import dataclass, field
 
+from database.models import Order
+
 load_dotenv()
 
 def get_db_url():
@@ -35,4 +37,27 @@ class Config:
         "Опір": "сопротивление"
     }
 
+    ACTIONS_MAP = {
+        "🔍 Активные заказы": ("view", "Активные заказы", "view_order"),
+        "✅ Завершить заказ": ("complete", "Выбери заказ для завершения", "complete_order"),
+        "🗑️ Удалить заказ": ("delete", "Выбери заказ для удаления", "delete_order"),
+        "📝 Редактировать заказ": ("edit", "Выбери заказ для редактирования", "edit_order")
+    }
+
+    PERIOD_MAP = {
+        "📅 Сегодня": "today",
+        "📅 Вчера": "yesterday",
+        "📅 Эта неделя": "week",
+        "📅 Этот месяц": "month"
+    }
+
 CONFIG = Config()
+
+def format_order_msg(order: Order) -> str:
+    """Format order message for Telegram"""
+    order_text = "Товары:\n"
+
+    for i, item in enumerate(order.items, 1):
+        order_text += f"- {item.product.full_name} x{item.quantity} - {item.price * item.quantity} грн\n"
+
+    return order_text + f"\nСума: {order.total} грн, Прибыль: {order.profit} грн"

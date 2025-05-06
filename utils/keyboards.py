@@ -37,6 +37,15 @@ def get_products_menu() -> ReplyKeyboardMarkup:
         ]
     )
 
+def get_active_orders_keyboard(order_ids: List[str], prefix: str) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(text=order_id, callback_data=f"{prefix}:{order_id}")
+        for order_id in order_ids
+    ]
+    keyboard = format_inline_kb(buttons, 3)
+    keyboard.append([get_cancel_button()])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 def get_statistics_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
         keyboard=[
@@ -45,11 +54,13 @@ def get_statistics_keyboard() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_category_keyboard() -> InlineKeyboardMarkup:
+def get_category_keyboard(go_back: bool = False) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=category, callback_data=f"category:{category}")
         for category in CONFIG.PRODUCT_CATEGORIES.keys()
     ]
+    if go_back:
+        buttons.append(get_back_button("back_to_order_actions"))
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons + [get_cancel_button()]))
 
 def get_product_keyboard(product_names: List[str]) -> InlineKeyboardMarkup:
@@ -82,14 +93,14 @@ def get_quantity_keyboard(max_qty: int, callback_str: str) -> InlineKeyboardMark
 def get_order_continue_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text="➕ Добавить еще товар", callback_data="order_continue:add_more"),
-        InlineKeyboardButton(text="✅ Завершить создание", callback_data="order_continue:finish")
+        InlineKeyboardButton(text="✅ Завершить добавление", callback_data="order_continue:finish")
     ]
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons))
 
 def get_order_actions_keyboard() -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text="➖ Удалить товар", callback_data="order_action:remove_item"),
         InlineKeyboardButton(text="➕ Добавить товар", callback_data="order_action:add_item"),
+        InlineKeyboardButton(text="➖ Удалить товар", callback_data="order_action:remove_item"),
         InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
         InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="order_action:finish")
     ]
@@ -103,13 +114,4 @@ def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardM
 
     keyboard = format_inline_kb(buttons, 1)
     keyboard.append([get_back_button("back_to_order_actions")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def get_active_orders_keyboard(order_ids: List[str], prefix: str = "order") -> InlineKeyboardMarkup:
-    buttons = [
-        InlineKeyboardButton(text=order_id, callback_data=f"{prefix}:{order_id}")
-        for order_id in order_ids
-    ]
-    keyboard = format_inline_kb(buttons, 3)
-    keyboard.append([get_cancel_button()])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -56,26 +56,8 @@ async def handle_password(message: Message, state: FSMContext):
     )
 
 @router.message(F.text == "🔙 Назад")
-async def back_to_prev_menu(message: Message, state: FSMContext):
-    cur_state = await state.get_state()
-
-    if cur_state:
-        if cur_state.startswith("Statistic"):
-            context = "main"
-            reply_kb = get_main_menu()
-        elif cur_state.startswith("Order"):
-            context = "orders"
-            reply_kb = get_main_menu()
-        else:
-            context = "products"
-            reply_kb = get_products_menu()
-    else:
-        context = "main"
-        reply_kb = get_main_menu()
-
-    await state.clear()
-    await state.update_data(context=context)
-    await message.answer("Выбери опцию", reply_markup=reply_kb)
+async def back_to_prev_menu(message: Message):
+    await message.answer("Выбери опцию", reply_markup=get_main_menu())
 
 @router.message(F.text == "🛒 Заказы")
 async def orders_menu(message: Message, state: FSMContext):
