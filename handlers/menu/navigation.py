@@ -8,8 +8,12 @@ from utils.keyboards import (
     get_category_keyboard,
     get_product_keyboard,
     get_attribute_keyboard,
+    get_orders_menu,
+    get_products_menu,
+    get_statistics_keyboard
 )
 from utils.config import CONFIG, format_order_msg
+from utils.states import StatisticsStates
 from service.order_service import OrderService
 from service.product_service import ProductService
 
@@ -38,15 +42,11 @@ async def back_to_order_items(callback: CallbackQuery, state: FSMContext, order_
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_categories")
-async def back_to_categories(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
+async def back_to_categories(callback: CallbackQuery, state: FSMContext):
     """Go back to categories selection"""
     data = await state.get_data()
     order_id = data.get("order_id")
-    if order_id:
-        order = order_service.get_order(order_id)
-        order_text = f"Заказ {order_id}\n\n" + format_order_msg(order)
-    else:
-        order_text = "Выбери категорию товара"
+    order_text = f"Заказ {order_id}\n\nВыбери категорию товара" if order_id else "Выбери категорию товара"
 
     await callback.message.edit_text(order_text, reply_markup=get_category_keyboard())
     await callback.answer()
@@ -79,6 +79,26 @@ async def back_to_attributes(callback: CallbackQuery, state: FSMContext, product
     await callback.answer()
 
 @router.callback_query(F.data == "cancel")
-async def cancel_operation(callback: CallbackQuery, state: FSMContext):
+async def cancel_operation(callback: CallbackQuery, state: FSMContext, order_service: OrderService = None):
     """Cancel current operation"""
+    data = await state.get_data()
+    context, order_id, new_action = data.get("context"), data.get("order_id"), data.get("new_action")
 
+    if order_id and new_action:
+        order = order_service.get_order(order_id)
+        order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+        await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
+    else:
+        await callback.message.edit_text("Операция отменена")
+
+        if context in ["orders", "products"]:
+            reply_markup = get_orders_menu() if context == "orders" else get_products_menu()
+            await callback.message.answer("Выбери действие", reply_markup=reply_markup)
+            await state.clear()
+        else:
+            await callback.message.answer("Выбери период для статистики", reply_markup=get_statistics_keyboard())
+            await state.set_state(StatisticsStates.SELECT_PERIOD)
+
+        await state.update_data(context=context)
+
+    await callback.answer()

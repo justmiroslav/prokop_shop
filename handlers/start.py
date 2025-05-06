@@ -56,7 +56,12 @@ async def handle_password(message: Message, state: FSMContext):
     )
 
 @router.message(F.text == "🔙 Назад")
-async def back_to_prev_menu(message: Message):
+async def back_to_prev_menu(message: Message, state: FSMContext):
+    data = await state.get_data()
+    context = data.get("context")
+    if context == "statistics":
+        await state.clear()
+
     await message.answer("Выбери опцию", reply_markup=get_main_menu())
 
 @router.message(F.text == "🛒 Заказы")

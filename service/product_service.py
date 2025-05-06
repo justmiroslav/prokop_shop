@@ -28,15 +28,14 @@ class ProductService:
         """Get product by ID"""
         return self.product_repo.get_by_id(product_id)
 
-    def add_quantity(self, product: Product, amount: int) -> bool:
+    async def add_quantity(self, product: Product, amount: int) -> bool:
         """Add quantity to a product"""
-        new_quantity = product.quantity + amount
-        return self.sheet_manager.update_product_quantity(product, new_quantity)
+        return await self.sheet_manager.update_product_quantity(product, product.quantity + amount)
 
-    def remove_quantity(self, product: Product, amount: int) -> bool:
+    async def remove_quantity(self, product: Product, amount: int) -> bool:
         """Remove quantity from a product"""
-        if product.quantity < amount:
-            return False
+        return await self.sheet_manager.update_product_quantity(product, product.quantity - amount)
 
-        new_quantity = product.quantity - amount
-        return self.sheet_manager.update_product_quantity(product, new_quantity)
+    async def update_quantity(self, product: Product, new_quantity: int) -> bool:
+        """Update product quantity"""
+        return await self.sheet_manager.update_product_quantity(product, new_quantity)

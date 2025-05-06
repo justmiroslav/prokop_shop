@@ -113,7 +113,7 @@ class SheetManager:
         worksheet = self.product_sheets[sheet_name]
         worksheet.update_cell(row, CONFIG.COL_QUANTITY + 1, quantity)
 
-    async def start_periodic_refresh(self, interval_seconds=30):
+    async def start_periodic_refresh(self, interval_seconds=15):
         """Start periodic refresh task"""
         self.periodic_refresh_task = asyncio.create_task(self.periodic_refresh(interval_seconds))
 

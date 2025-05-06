@@ -12,7 +12,7 @@ router = Router()
 @router.message(StatisticsStates.SELECT_PERIOD)
 async def show_statistics(message: Message, order_service: OrderService):
     """Show statistics for a period"""
-    period = CONFIG.PERIOD_MAP[message.text]
+    period = CONFIG.PERIOD_MAP.get(message.text)
     if not period:
         await message.answer("Неизвестный период", reply_markup=get_statistics_keyboard())
         return
@@ -20,7 +20,7 @@ async def show_statistics(message: Message, order_service: OrderService):
     try:
         start_date, end_date, period_name = order_service.get_date_period(period)
     except ValueError:
-        await message.answer("Ошибка при получении периода")
+        await message.answer("Ошибка при получении периода", reply_markup=get_statistics_keyboard())
         return
 
     loading_msg = await message.answer(f"🔍 Подготовка статистики за *{period_name}*...")

@@ -18,7 +18,7 @@ async def remove_item(callback: CallbackQuery, state: FSMContext, order_service:
     order_id = data.get("order_id")
 
     item = order_service.get_order_item(item_id)
-    success, message = order_service.remove_order_item(item)
+    success, message = await order_service.remove_order_item(item)
     if not success:
         await callback.message.edit_text(f"Ошибка: {message}", reply_markup=get_order_actions_keyboard())
         await callback.answer()
@@ -45,19 +45,21 @@ async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_r
         reply_markup=get_quantity_keyboard(min(item.quantity + item.product.quantity, 10), "back_to_order_items")
     )
 
-    await state.update_data(item_id=item.id)
+    await state.update_data(item_id=item.id, category=item.product.sheet_name, product_name=item.product.name, attribute=item.product.attribute)
     await state.set_state(OrderStates.EDIT_QUANTITY)
     await callback.answer()
 
-@router.callback_query(OrderStates.EDIT_QUANTITY, F.data.startswith("quantity:"))
+@router.callback_query(OrderStates.EDIT_QUANTITY)
 async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Update item quantity"""
     new_quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
     item_id, order_id = data.get("item_id"), data.get("order_id")
+    await state.clear()
+    await state.update_data(context="orders", order_id=order_id, action="edit")
 
     item = order_service.get_order_item(item_id)
-    success, message = order_service.update_order_item_quantity(item, new_quantity)
+    success, message = await order_service.update_order_item_quantity(item, new_quantity)
     if not success:
         await callback.message.edit_text(f"Ошибка: {message}", reply_markup=get_order_actions_keyboard())
         await callback.answer()

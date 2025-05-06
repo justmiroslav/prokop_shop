@@ -6,6 +6,7 @@ class AuthStates(StatesGroup):
 
 class OrderStates(StatesGroup):
     """States for order operations"""
+    SELECT_QUANTITY = State()
     EDIT_QUANTITY = State()
 
 class StatisticsStates(StatesGroup):

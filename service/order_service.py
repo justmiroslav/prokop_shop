@@ -26,67 +26,34 @@ class OrderService:
         """Get an order item by ID"""
         return self.order_repo.get_order_item(item_id)
 
-    def add_product_to_order(self, order: Order, product: Product, quantity: int) -> Tuple[
+    async def add_product_to_order(self, order: Order, product: Product, quantity: int) -> Tuple[
         bool, Optional[OrderItem], str]:
         """Add a product to an order, reducing product quantity"""
         if order.status != OrderStatus.PENDING:
             return False, None, "Заказ уже завершен"
 
-        if product.quantity < quantity:
-            return False, None, f"Недостаточно товара в наличии. Доступно: {product.quantity}"
-
-        success = self.product_service.remove_quantity(product, quantity)
-        if not success:
-            return False, None, "Ошибка при обновлении количества товара"
-
-        order_item = self.order_repo.add_item(
-            order, product.id, quantity, product.price, product.cost
-        )
-
+        await self.product_service.remove_quantity(product, quantity)
+        order_item = self.order_repo.add_item(order, product.id, quantity, product.price, product.cost)
         return True, order_item, "Товар успешно добавлен в заказ"
 
-    def update_order_item_quantity(self, item: OrderItem, new_quantity: int) -> Tuple[bool, str]:
+    async def update_order_item_quantity(self, item: OrderItem, new_quantity: int) -> Tuple[bool, str]:
         """Update order item quantity"""
         if item.order.status != OrderStatus.PENDING:
             return False, "Заказ уже завершен"
 
         product = self.product_service.get_product_by_id(item.product_id)
-        if not product:
-            return False, "Товар не найден"
+        await self.product_service.update_quantity(product, product.quantity - (new_quantity - item.quantity))
 
-        quantity_diff = new_quantity - item.quantity
+        self.order_repo.update_item_quantity(item, new_quantity)
+        return True, "Количество товара обновлено"
 
-        if quantity_diff > 0:
-            if product.quantity < quantity_diff:
-                return False, f"Недостаточно товара в наличии. Доступно: {product.quantity}"
-
-            success = self.product_service.remove_quantity(product, quantity_diff)
-            if not success:
-                return False, "Ошибка при обновлении количества товара"
-        elif quantity_diff < 0:
-            success = self.product_service.add_quantity(product, abs(quantity_diff))
-            if not success:
-                return False, "Ошибка при обновлении количества товара"
-
-        if new_quantity <= 0:
-            self.order_repo.remove_item(item)
-            return True, "Товар удален из заказа"
-        else:
-            self.order_repo.update_item_quantity(item, new_quantity)
-            return True, "Количество товара обновлено"
-
-    def remove_order_item(self, item: OrderItem) -> Tuple[bool, str]:
+    async def remove_order_item(self, item: OrderItem) -> Tuple[bool, str]:
         """Remove an item from order"""
         if item.order.status != OrderStatus.PENDING:
             return False, "Заказ уже завершен"
 
         product = self.product_service.get_product_by_id(item.product_id)
-        if not product:
-            return False, "Товар не найден"
-
-        success = self.product_service.add_quantity(product, item.quantity)
-        if not success:
-            return False, "Ошибка при возврате товара в наличие"
+        await self.product_service.add_quantity(product, item.quantity)
 
         self.order_repo.remove_item(item)
         return True, "Товар удален из заказа"
@@ -102,7 +69,7 @@ class OrderService:
         self.order_repo.complete_order(order)
         return True, "Заказ успешно завершен"
 
-    def delete_order(self, order: Order) -> Tuple[bool, str]:
+    async def delete_order(self, order: Order) -> Tuple[bool, str]:
         """Delete an order and return products to inventory"""
         if order.status != OrderStatus.PENDING:
             return False, "Невозможно удалить завершенный заказ"
@@ -110,7 +77,7 @@ class OrderService:
         for item in order.items:
             product = self.product_service.get_product_by_id(item.product_id)
             if product:
-                self.product_service.add_quantity(product, item.quantity)
+               await self.product_service.add_quantity(product, item.quantity)
 
         self.order_repo.delete_order(order)
         return True, "Заказ успешно удален"

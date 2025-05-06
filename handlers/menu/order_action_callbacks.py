@@ -51,7 +51,7 @@ async def delete_order(callback: CallbackQuery, state: FSMContext, order_service
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    success, message = order_service.delete_order(order)
+    success, message = await order_service.delete_order(order)
     if not success:
         await callback.message.edit_text(f"Ошибка: {message}")
     else:
@@ -83,7 +83,7 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
 
     if action == "add_item":
         await state.update_data(new_action="add_item")
-        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери категорию товара", reply_markup=get_category_keyboard(go_back=True))
+        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери категорию товара", reply_markup=get_category_keyboard())
 
     elif action == "remove_item":
         await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для удаления",
@@ -97,9 +97,7 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
 
     else:
         upd_order = order_service.get_order(order_id)
-        await callback.message.edit_text(f"Редактирование заказа {upd_order.id} завершено.\n\n"
-            + format_order_msg(upd_order)
-        )
+        await callback.message.edit_text(f"✅ Редактирование заказа {upd_order.id} завершено.\n\n")
 
         await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
         await state.clear()

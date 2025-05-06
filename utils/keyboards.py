@@ -54,13 +54,11 @@ def get_statistics_keyboard() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_category_keyboard(go_back: bool = False) -> InlineKeyboardMarkup:
+def get_category_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=category, callback_data=f"category:{category}")
         for category in CONFIG.PRODUCT_CATEGORIES.keys()
     ]
-    if go_back:
-        buttons.append(get_back_button("back_to_order_actions"))
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons + [get_cancel_button()]))
 
 def get_product_keyboard(product_names: List[str]) -> InlineKeyboardMarkup:
