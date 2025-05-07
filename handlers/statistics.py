@@ -32,9 +32,9 @@ async def show_statistics(message: Message, order_service: OrderService):
         return
 
     stats_text = f"📊 *Статистика за {period_name}*\n\n"
-    stats_text += f"Всего заказов: *{stats["count"]}*\n\n"
-    stats_text += f"Общая выручка: *{stats["gross_revenue"]:.2f} грн*\n\n"
-    stats_text += f"Чистая прибыль: *{stats["net_profit"]:.2f} грн*"
+    stats_text += f"Всего заказов: *{stats['count']}*\n\n"
+    stats_text += f"Общая выручка: *{stats['gross_revenue']:.2f} грн*\n\n"
+    stats_text += f"Чистая прибыль: *{stats['net_profit']:.2f} грн*"
 
     detailed_report = create_detailed_report(stats, period_name)
 
@@ -56,7 +56,7 @@ def create_detailed_report(stats, period_name):
 
     for order in stats["orders"]:
         detailed_report.write(f"Заказ #{order.id}\n")
-        detailed_report.write(f"Дата завершения: {order.completed_at.strftime("%d.%m.%Y %H:%M")}\n")
+        detailed_report.write(f"Дата завершения: {order.completed_at.strftime('%d.%m.%Y %H:%M')}\n")
         detailed_report.write(f"Сумма: {order.total:.2f} грн\n\n")
         detailed_report.write(f"Прибыль: {order.profit:.2f} грн\n\n")
 
