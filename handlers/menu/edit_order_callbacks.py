@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 
 from repository.order_repository import OrderRepository
 from utils.keyboards import get_quantity_keyboard, get_order_actions_keyboard
+from handlers.menu.navigation import back_to_order_items, cancel_operation
 from utils.config import format_order_msg
 from utils.states import OrderStates
 from service.order_service import OrderService
@@ -52,6 +53,11 @@ async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_r
 @router.callback_query(OrderStates.EDIT_QUANTITY)
 async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Update item quantity"""
+    if callback.data == "back_to_order_items":
+        return await back_to_order_items(callback, state, order_service)
+    if callback.data == "cancel":
+        return await cancel_operation(callback, state)
+
     new_quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
     item_id, order_id = data.get("item_id"), data.get("order_id")

@@ -63,8 +63,8 @@ def get_category_keyboard() -> InlineKeyboardMarkup:
 
 def get_product_keyboard(product_names: List[str]) -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text=product_name, callback_data=f"product:{product_name}")
-        for product_name in product_names
+        InlineKeyboardButton(text=product_name, callback_data=f"product:{index}")
+        for index, product_name in enumerate(product_names)
     ]
     keyboard = format_inline_kb(buttons)
     keyboard.append(get_additional_row("back_to_categories"))
@@ -72,8 +72,8 @@ def get_product_keyboard(product_names: List[str]) -> InlineKeyboardMarkup:
 
 def get_attribute_keyboard(attributes: List[str]) -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text=attribute, callback_data=f"attribute:{attribute}")
-        for attribute in attributes
+        InlineKeyboardButton(text=attribute, callback_data=f"attribute:{index}")
+        for index, attribute in enumerate(attributes)
     ]
     keyboard = format_inline_kb(buttons, 3)
     keyboard.append(get_additional_row("back_to_products"))

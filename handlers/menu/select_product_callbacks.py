@@ -15,6 +15,7 @@ from utils.keyboards import (
 )
 from utils.config import CONFIG, format_order_msg
 from utils.states import OrderStates
+from handlers.menu.navigation import back_to_attributes, cancel_operation
 from service.order_service import OrderService
 from service.product_service import ProductService
 
@@ -38,32 +39,34 @@ async def select_category(callback: CallbackQuery, state: FSMContext, product_se
         reply_markup=get_product_keyboard(product_names)
     )
 
-    await state.update_data(category=category)
+    await state.update_data(category=category, product_names=product_names)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("product:"))
 async def select_product(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
     """Handle product selection"""
-    product_name = callback.data.split(":")[1]
+    index = int(callback.data.split(":")[1])
     data = await state.get_data()
-    category, action = data.get("category"), data.get("action")
+    category, action, product_names = data.get("category"), data.get("action"), data.get("product_names")
 
+    product_name = product_names[index]
     attributes = product_service.get_attributes(category, product_name, action)
     await callback.message.edit_text(
         f"Выбери {CONFIG.ATTRIBUTE_MAP[CONFIG.PRODUCT_CATEGORIES[category]]} товара *\"{product_name}\"*",
         reply_markup=get_attribute_keyboard(attributes)
     )
 
-    await state.update_data(product_name=product_name)
+    await state.update_data(product_name=product_name, attributes=attributes)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("attribute:"))
 async def select_attribute(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
     """Handle attribute selection"""
-    attribute = callback.data.split(":")[1]
+    attribute_index = int(callback.data.split(":")[1])
     data = await state.get_data()
-    category, action, product_name = data.get("category"), data.get("action"), data.get("product_name")
+    category, action, product_name, attributes = data.get("category"), data.get("action"), data.get("product_name"), data.get("attributes")
 
+    attribute = attributes[attribute_index]
     product = product_service.get_product(category, product_name, attribute)
     max_qty = 10 if action == "add" else min(product.quantity, 10)
 
@@ -79,6 +82,11 @@ async def select_attribute(callback: CallbackQuery, state: FSMContext, product_s
 @router.callback_query(OrderStates.SELECT_QUANTITY)
 async def select_quantity(callback: CallbackQuery, state: FSMContext, order_service: OrderService, product_service: ProductService):
     """Handle quantity selection"""
+    if callback.data == "back_to_attributes":
+        return await back_to_attributes(callback, state, product_service)
+    if callback.data == "cancel":
+        return await cancel_operation(callback, state)
+
     quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
     category, action, product_name, attribute, new_action = data.get("category"), data.get("action"), data.get("product_name"), data.get("attribute"), data.get("new_action")
