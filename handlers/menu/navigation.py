@@ -69,7 +69,7 @@ async def back_to_products(callback: CallbackQuery, state: FSMContext, product_s
 async def back_to_attributes(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
     """Go back to attributes selection"""
     data = await state.get_data()
-    context, category, action, product_name = data.get("context"), data.get("category"), data.get("action"), data.get("product_name")
+    context, category, action, product_name, order_id = data.get("context"), data.get("category"), data.get("action"), data.get("product_name"), data.get("order_id")
 
     attributes = product_service.get_attributes(category, product_name, action)
     await callback.message.edit_text(
@@ -78,7 +78,7 @@ async def back_to_attributes(callback: CallbackQuery, state: FSMContext, product
     )
 
     await state.clear()
-    await state.update_data(context=context, category=category, action=action, product_name=product_name, attributes=attributes)
+    await state.update_data(context=context, category=category, action=action, product_name=product_name, attributes=attributes, order_id=order_id)
     await callback.answer()
 
 @router.callback_query(F.data == "cancel")
