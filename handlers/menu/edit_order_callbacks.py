@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from repository.order_repository import OrderRepository
 from utils.keyboards import get_quantity_keyboard, get_order_actions_keyboard
 from handlers.menu.navigation import back_to_order_items, cancel_operation
-from utils.config import format_order_msg
+from utils.shit_utils import format_order_msg
 from utils.states import OrderStates
 from service.order_service import OrderService
 

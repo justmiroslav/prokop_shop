@@ -4,6 +4,7 @@ from io import StringIO
 
 from utils.keyboards import get_statistics_keyboard
 from utils.config import CONFIG
+from utils.shit_utils import format_price
 from utils.states import StatisticsStates
 from service.order_service import OrderService
 
@@ -33,19 +34,20 @@ async def show_statistics(message: Message, order_service: OrderService):
 
     stats_text = f"📊 *Статистика за {period_name}*\n\n"
     stats_text += f"Всего заказов: *{stats['count']}*\n\n"
-    stats_text += f"Общая выручка: *{stats['gross_revenue']:.2f} грн*\n\n"
-    stats_text += f"Чистая прибыль: *{stats['net_profit']:.2f} грн*"
+    stats_text += f"Общая выручка: *{format_price(stats['gross_revenue'])} грн*\n\n"
+
+    if stats["total_adjustments"] != 0:
+        stats_text += f"Расчетная прибыль: *{format_price(stats['ideal_profit'])} грн*\n\n"
+        stats_text += f"Сумма корректировок: *{format_price(stats['total_adjustments'])} грн*\n\n"
+
+    stats_text += f"Чистая прибыль: *{format_price(stats['net_profit'])} грн*"
 
     detailed_report = create_detailed_report(stats, period_name)
 
     await loading_msg.delete()
     await message.answer(stats_text, reply_markup=get_statistics_keyboard())
-
-    await message.answer_document(
-        BufferedInputFile(
-            detailed_report.getvalue().encode("utf-8"),
-            filename=f"stats_{period}_{start_date.strftime('%Y%m%d')}.txt"
-        ),
+    await message.answer_document(BufferedInputFile(detailed_report.getvalue().encode("utf-8"),
+            filename=f"stats_{period}_{start_date.strftime('%Y%m%d')}.txt"),
         caption="Файл с подробной статистикой по всем заказам за период"
     )
 
@@ -56,11 +58,22 @@ def create_detailed_report(stats, period_name):
 
     for order in stats["orders"]:
         detailed_report.write(f"Заказ #{order.id}\n")
-        detailed_report.write(f"Дата завершения: {order.completed_at.strftime('%d.%m.%Y %H:%M')}\n")
-        detailed_report.write(f"Сумма: {order.total:.2f} грн\n\n")
-        detailed_report.write(f"Прибыль: {order.profit:.2f} грн\n\n")
+        detailed_report.write(f"Дата завершения: {order.completed_at.strftime('%d.%m.%Y')}\n")
+        detailed_report.write(f"Сумма: {format_price(order.total)} грн\n")
 
-        detailed_report.write("Товары:\n")
+        if order.total_adjustments != 0:
+            detailed_report.write(f"Расчетная прибыль: {format_price(order.ideal_profit)} грн\n")
+
+            detailed_report.write("Корректировки:\n")
+            for adj in order.adjustments:
+                prefix = "+" if adj.amount > 0 else "-"
+                detailed_report.write(f"{prefix} {format_price(adj.amount)} грн: {adj.reason}\n")
+
+            detailed_report.write(f"Итоговая прибыль: {format_price(order.actual_profit)} грн\n")
+        else:
+            detailed_report.write(f"Прибыль: {format_price(order.profit)} грн\n")
+
+        detailed_report.write("\nТовары:\n")
         for item in order.items:
             detailed_report.write(f"- {item.product.full_name} x{item.quantity} шт.\n")
 

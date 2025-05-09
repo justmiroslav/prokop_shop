@@ -1,5 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
-from typing import List
+from typing import List, Tuple
+from datetime import date
 
 from utils.config import CONFIG
 
@@ -26,7 +27,8 @@ def get_orders_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
         keyboard=[
             [KeyboardButton(text="➕ Новый заказ"), KeyboardButton(text="✅ Завершить заказ"), KeyboardButton(text="🗑️ Удалить заказ")],
-            [KeyboardButton(text="📝 Редактировать заказ"), KeyboardButton(text="🔍 Активные заказы"), KeyboardButton(text="🔙 Назад")]
+            [KeyboardButton(text="📝 Редактировать заказ"), KeyboardButton(text="🔍 Активные заказы")],
+            [KeyboardButton(text="💬 Сообщение клиенту"), KeyboardButton(text="🔙 Назад")]
         ]
     )
 
@@ -100,6 +102,7 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➕ Добавить товар", callback_data="order_action:add_item"),
         InlineKeyboardButton(text="➖ Удалить товар", callback_data="order_action:remove_item"),
         InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
+        InlineKeyboardButton(text="💰 Изменить профит", callback_data="order_action:edit_profit"),
         InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="order_action:finish")
     ]
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons, 2))
@@ -110,6 +113,36 @@ def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardM
         text = f"{item.product.full_name} - x{item.quantity}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
+    keyboard = format_inline_kb(buttons, 1)
+    keyboard.append([get_back_button("back_to_order_actions")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_completion_date_keyboard(date_options: List[Tuple[date, str]]) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(text=date_text, callback_data=f"completion_date:{d.isoformat()}")
+        for d, date_text in date_options
+    ]
+    keyboard = format_inline_kb(buttons, 2)
+    keyboard.append([get_cancel_button()])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_adjustment_keyboard() -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(text="➕ Прибавить к профиту", callback_data="profit_adj:add"),
+        InlineKeyboardButton(text="➖ Вычесть из профита", callback_data="profit_adj:subtract")
+    ]
+    keyboard = format_inline_kb(buttons, 1)
+    keyboard.append(get_additional_row("back_to_order_actions"))
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
+    buttons = []
+    for adj in adjustments:
+        prefix = "+" if adj.amount > 0 else ""
+        text = f"{prefix} {adj.amount} грн: {adj.reason}"
+        buttons.append(InlineKeyboardButton(text=text, callback_data=f"delete_adj:{adj.id}"))
+
+    buttons.append(InlineKeyboardButton(text="➕ Добавить корректировку", callback_data="add_adj"))
     keyboard = format_inline_kb(buttons, 1)
     keyboard.append([get_back_button("back_to_order_actions")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

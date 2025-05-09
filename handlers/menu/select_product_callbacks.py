@@ -13,7 +13,8 @@ from utils.keyboards import (
     get_order_continue_keyboard,
     get_order_actions_keyboard
 )
-from utils.config import CONFIG, format_order_msg
+from utils.config import CONFIG
+from utils.shit_utils import format_order_msg
 from utils.states import OrderStates
 from handlers.menu.navigation import back_to_attributes, cancel_operation
 from service.order_service import OrderService

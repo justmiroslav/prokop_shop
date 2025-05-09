@@ -12,7 +12,8 @@ from utils.keyboards import (
     get_products_menu,
     get_statistics_keyboard
 )
-from utils.config import CONFIG, format_order_msg
+from utils.config import CONFIG
+from utils.shit_utils import format_order_msg
 from utils.states import StatisticsStates
 from service.order_service import OrderService
 from service.product_service import ProductService

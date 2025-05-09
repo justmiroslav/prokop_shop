@@ -31,15 +31,31 @@ class Product(Base):
     def __repr__(self):
         return f"<Product {self.name} ({self.attribute})>"
 
+class ProfitAdjustment(Base):
+    __tablename__ = "profit_adjustments"
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(String, ForeignKey("orders.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    reason = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    order = relationship("Order", back_populates="adjustments")
+
+    def __repr__(self):
+        prefix = "+" if self.amount > 0 else ""
+        return f"<Adjustment {prefix}{self.amount} грн: {self.reason}>"
+
 class Order(Base):
     __tablename__ = "orders"
 
-    id = Column(String, primary_key=True)  # UUID
+    id = Column(String, primary_key=True)
     created_at = Column(DateTime, default=datetime.now)
     completed_at = Column(DateTime, nullable=True)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    adjustments = relationship("ProfitAdjustment", back_populates="order", cascade="all, delete-orphan")
 
     @property
     def total(self):
@@ -50,8 +66,20 @@ class Order(Base):
         return sum(item.cost * item.quantity for item in self.items)
 
     @property
-    def profit(self):
+    def ideal_profit(self):
         return self.total - self.total_cost
+
+    @property
+    def total_adjustments(self):
+        return sum(adj.amount for adj in self.adjustments)
+
+    @property
+    def actual_profit(self):
+        return self.ideal_profit + self.total_adjustments
+
+    @property
+    def profit(self):
+        return self.actual_profit
 
     def __repr__(self):
         return f"<Order {self.id} ({self.status.value})>"

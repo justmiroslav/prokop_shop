@@ -8,7 +8,7 @@ from database.session import init_db, Session
 from repository.sheets import SheetManager
 from middleware import DependencyMiddleware
 from handlers import start, statistics, echo
-from handlers.menu import actions, edit_order_callbacks, navigation, order_action_callbacks, select_product_callbacks
+from handlers.menu import actions, edit_order_callbacks, navigation, order_action_callbacks, select_product_callbacks, adj_order_callbacks
 
 async def main():
     init_db()
@@ -30,6 +30,7 @@ async def main():
     dp.include_router(select_product_callbacks.router)
     dp.include_router(order_action_callbacks.router)
     dp.include_router(edit_order_callbacks.router)
+    dp.include_router(adj_order_callbacks.router)
     dp.include_router(navigation.router)
     dp.include_router(statistics.router)
     dp.include_router(echo.router)

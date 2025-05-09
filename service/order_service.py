@@ -1,9 +1,10 @@
 from typing import List, Optional, Dict, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
-from database.models import Order, OrderItem, Product, OrderStatus
+from database.models import Order, OrderItem, Product, OrderStatus, ProfitAdjustment
 from repository.order_repository import OrderRepository
 from service.product_service import ProductService
+from utils.shit_utils import get_date_range, format_customer_message
 
 class OrderService:
     def __init__(self, order_repo: OrderRepository, product_service: ProductService):
@@ -58,15 +59,18 @@ class OrderService:
         self.order_repo.remove_item(item)
         return True, "Товар удален из заказа"
 
-    def complete_order(self, order: Order) -> Tuple[bool, str]:
-        """Complete an order"""
+    def complete_order(self, order: Order, completion_date: datetime = None) -> Tuple[bool, str]:
+        """Complete an order with optional custom completion date"""
         if order.status != OrderStatus.PENDING:
             return False, "Заказ уже завершен"
 
         if not order.items:
             return False, "Невозможно завершить пустой заказ"
 
-        self.order_repo.complete_order(order)
+        if completion_date and completion_date.date() < order.created_at.date():
+            return False, "Дата завершения не может быть раньше даты создания заказа"
+
+        self.order_repo.complete_order(order, completion_date)
         return True, "Заказ успешно завершен"
 
     async def delete_order(self, order: Order) -> Tuple[bool, str]:
@@ -88,14 +92,49 @@ class OrderService:
 
         total_revenue = sum(order.total for order in orders)
         total_cost = sum(order.total_cost for order in orders)
-        profit = total_revenue - total_cost
+        ideal_profit = sum(order.ideal_profit for order in orders)
+        actual_profit = sum(order.actual_profit for order in orders)
+        total_adjustments = sum(order.total_adjustments for order in orders)
 
         return {
             "orders": orders,
             "count": len(orders),
             "gross_revenue": total_revenue,
-            "net_profit": profit
+            "total_cost": total_cost,
+            "ideal_profit": ideal_profit,
+            "total_adjustments": total_adjustments,
+            "net_profit": actual_profit
         }
+
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> Tuple[bool, str]:
+        """Add profit adjustment to order"""
+        if order.status != OrderStatus.PENDING:
+            return False, "Невозможно изменить профит завершенного заказа"
+
+        self.order_repo.add_profit_adjustment(order, amount, reason)
+        return True, "Корректировка профита успешно добавлена"
+
+    def get_profit_adjustments(self, order_id: str) -> List[ProfitAdjustment]:
+        """Get all profit adjustments for an order"""
+        return self.order_repo.get_profit_adjustments(order_id)
+
+    def delete_profit_adjustment(self, adjustment_id: int) -> Tuple[bool, str]:
+        """Delete a profit adjustment"""
+        try:
+            self.order_repo.delete_profit_adjustment(adjustment_id)
+            return True, "Корректировка удалена"
+        except Exception as e:
+            return False, f"Ошибка при удалении корректировки: {e}"
+
+    @staticmethod
+    def get_completion_date_options(order: Order) -> List[Tuple[date, str]]:
+        """Get available completion date options"""
+        return get_date_range(order)
+
+    @staticmethod
+    def get_customer_message(order: Order) -> str:
+        """Format message for customer with order details"""
+        return format_customer_message(order)
 
     @staticmethod
     def get_date_period(period: str) -> Tuple[datetime, datetime, str]:

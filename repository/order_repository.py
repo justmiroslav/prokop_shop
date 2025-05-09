@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 import uuid
 
-from database.models import Order, OrderItem, OrderStatus
+from database.models import Order, OrderItem, OrderStatus, ProfitAdjustment
 
 class OrderRepository:
     def __init__(self, session: Session):
@@ -67,10 +67,10 @@ class OrderRepository:
         self.session.delete(item)
         self.session.commit()
 
-    def complete_order(self, order: Order) -> Order:
-        """Complete an order"""
+    def complete_order(self, order: Order, completion_date: datetime = None) -> Order:
+        """Complete an order with optional specific date"""
         order.status = OrderStatus.COMPLETED
-        order.completed_at = datetime.now()
+        order.completed_at = completion_date or datetime.now()
         self.session.commit()
         return order
 
@@ -82,3 +82,30 @@ class OrderRepository:
     def get_order_item(self, item_id: int) -> Optional[OrderItem]:
         """Get order item by ID"""
         return self.session.query(OrderItem).filter(OrderItem.id == item_id).first()
+
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> ProfitAdjustment:
+        """Add profit adjustment to order"""
+        adjustment = ProfitAdjustment(
+            order_id=order.id,
+            amount=amount,
+            reason=reason
+        )
+        self.session.add(adjustment)
+        self.session.commit()
+        return adjustment
+
+    def get_profit_adjustments(self, order_id: str) -> List[ProfitAdjustment]:
+        """Get all profit adjustments for an order"""
+        return self.session.query(ProfitAdjustment).filter(
+            ProfitAdjustment.order_id == order_id
+        ).order_by(ProfitAdjustment.created_at).all()
+
+    def delete_profit_adjustment(self, adjustment_id: int) -> None:
+        """Delete a profit adjustment"""
+        adjustment = self.session.query(ProfitAdjustment).filter(
+            ProfitAdjustment.id == adjustment_id
+        ).first()
+
+        if adjustment:
+            self.session.delete(adjustment)
+            self.session.commit()
