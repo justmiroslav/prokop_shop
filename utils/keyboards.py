@@ -3,6 +3,7 @@ from typing import List, Tuple
 from datetime import date
 
 from utils.config import CONFIG
+from utils.shit_utils import format_price
 
 def format_inline_kb(buttons: list[InlineKeyboardButton], max_in_row: int = 2) -> list[list[InlineKeyboardButton]]:
     return [buttons[i:min(i + max_in_row, len(buttons))] for i in range(0, len(buttons), max_in_row)]
@@ -110,7 +111,8 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
 def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardMarkup:
     buttons = []
     for item in order_items:
-        text = f"{item.product.full_name} - x{item.quantity}"
+        prefix, suffix = ("❌ ", "") if action_prefix == "remove_item" else ("", f" - x{item.quantity}")
+        text = f"{prefix}{item.product.full_name}{suffix}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
     keyboard = format_inline_kb(buttons, 1)
@@ -138,8 +140,8 @@ def get_adjustment_keyboard() -> InlineKeyboardMarkup:
 def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
     buttons = []
     for adj in adjustments:
-        prefix = "+" if adj.amount > 0 else ""
-        text = f"{prefix} {adj.amount} грн: {adj.reason}"
+        prefix = "+" if adj.amount > 0 else "-"
+        text = f"❌ {prefix} {format_price(abs(adj.amount))} грн: {adj.reason}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"delete_adj:{adj.id}"))
 
     buttons.append(InlineKeyboardButton(text="➕ Добавить корректировку", callback_data="add_adj"))

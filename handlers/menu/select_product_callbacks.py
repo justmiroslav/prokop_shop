@@ -14,7 +14,7 @@ from utils.keyboards import (
     get_order_actions_keyboard
 )
 from utils.config import CONFIG
-from utils.shit_utils import format_order_msg
+from utils.shit_utils import format_order_msg, format_price
 from utils.states import OrderStates
 from handlers.menu.navigation import back_to_attributes, cancel_operation
 from service.order_service import OrderService
@@ -96,19 +96,11 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
     if action in ["add", "remove"]:
         if action == "add":
-            success = await product_service.add_quantity(product, quantity)
+            await product_service.add_quantity(product, quantity)
             action_text = "добавлено"
         else:
-            success = await product_service.remove_quantity(product, quantity)
+            await product_service.remove_quantity(product, quantity)
             action_text = "убрано"
-
-        if not success:
-            await callback.message.edit_text(f"Ошибка при обновлении количества товара")
-            await callback.message.answer("Выбери действие", reply_markup=get_products_menu())
-            await state.clear()
-            await state.update_data(context="products")
-            await callback.answer()
-            return
 
         await callback.message.edit_text(f"✅ Успешно {action_text} {quantity} шт. товара {product.full_name}\n\n"
             f"Новое количество: {product.quantity}"
@@ -121,16 +113,9 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
-    success, item, message = await order_service.add_product_to_order(order, product, quantity)
-    if not success:
-        await callback.message.edit_text(f"Ошибка: {message}")
-        await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
-        await state.clear()
-        await state.update_data(context="orders")
-        await callback.answer()
-        return
+    await order_service.add_product_to_order(order, product, quantity)
 
-    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text, reply_markup=get_order_continue_keyboard())
     await state.clear()
     await state.update_data(context="orders", order_id=order.id, action=action)
@@ -152,12 +137,12 @@ async def handle_order_continue(callback: CallbackQuery, state: FSMContext, orde
         return
 
     if new_action == "add_item":
-        order_text = f"Заказ {order.id}\n\n" + format_order_msg(order) + "\n\nВыбери действие"
+        order_text = f"Заказ {order.id}\n" + format_order_msg(order) + "\nВыбери действие"
         await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
         await callback.answer()
         return
 
-    await callback.message.edit_text(f"✅ Заказ {order.id} успешно создан!\n\nСумма заказа: {order.total} грн")
+    await callback.message.edit_text(f"✅ Заказ {order.id} успешно создан!\n\nСумма заказа: {format_price(order.total)} грн")
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
     await state.update_data(context="orders")

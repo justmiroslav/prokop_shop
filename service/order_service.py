@@ -1,10 +1,10 @@
 from typing import List, Optional, Dict, Tuple
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 
-from database.models import Order, OrderItem, Product, OrderStatus, ProfitAdjustment
+from database.models import Order, OrderItem, Product, ProfitAdjustment
 from repository.order_repository import OrderRepository
 from service.product_service import ProductService
-from utils.shit_utils import get_date_range, format_customer_message
+from utils.shit_utils import get_date_range, format_customer_message, build_date_period
 
 class OrderService:
     def __init__(self, order_repo: OrderRepository, product_service: ProductService):
@@ -27,43 +27,25 @@ class OrderService:
         """Get an order item by ID"""
         return self.order_repo.get_order_item(item_id)
 
-    async def add_product_to_order(self, order: Order, product: Product, quantity: int) -> Tuple[
-        bool, Optional[OrderItem], str]:
+    async def add_product_to_order(self, order: Order, product: Product, quantity: int) -> None:
         """Add a product to an order, reducing product quantity"""
-        if order.status != OrderStatus.PENDING:
-            return False, None, "Заказ уже завершен"
-
         await self.product_service.remove_quantity(product, quantity)
-        order_item = self.order_repo.add_item(order, product.id, quantity, product.price, product.cost)
-        return True, order_item, "Товар успешно добавлен в заказ"
+        self.order_repo.add_item(order, product.id, quantity, product.price, product.cost)
 
-    async def update_order_item_quantity(self, item: OrderItem, new_quantity: int) -> Tuple[bool, str]:
+    async def update_order_item_quantity(self, item: OrderItem, new_quantity: int) -> None:
         """Update order item quantity"""
-        if item.order.status != OrderStatus.PENDING:
-            return False, "Заказ уже завершен"
-
         product = self.product_service.get_product_by_id(item.product_id)
         await self.product_service.update_quantity(product, product.quantity - (new_quantity - item.quantity))
-
         self.order_repo.update_item_quantity(item, new_quantity)
-        return True, "Количество товара обновлено"
 
-    async def remove_order_item(self, item: OrderItem) -> Tuple[bool, str]:
+    async def remove_order_item(self, item: OrderItem) -> None:
         """Remove an item from order"""
-        if item.order.status != OrderStatus.PENDING:
-            return False, "Заказ уже завершен"
-
         product = self.product_service.get_product_by_id(item.product_id)
         await self.product_service.add_quantity(product, item.quantity)
-
         self.order_repo.remove_item(item)
-        return True, "Товар удален из заказа"
 
     def complete_order(self, order: Order, completion_date: datetime = None) -> Tuple[bool, str]:
         """Complete an order with optional custom completion date"""
-        if order.status != OrderStatus.PENDING:
-            return False, "Заказ уже завершен"
-
         if not order.items:
             return False, "Невозможно завершить пустой заказ"
 
@@ -71,26 +53,23 @@ class OrderService:
             return False, "Дата завершения не может быть раньше даты создания заказа"
 
         self.order_repo.complete_order(order, completion_date)
-        return True, "Заказ успешно завершен"
+        return True, f"✅ Заказ {order.id} успешно завершен!"
 
-    async def delete_order(self, order: Order) -> Tuple[bool, str]:
+    async def delete_order(self, order: Order) -> str:
         """Delete an order and return products to inventory"""
-        if order.status != OrderStatus.PENDING:
-            return False, "Невозможно удалить завершенный заказ"
-
         for item in order.items:
             product = self.product_service.get_product_by_id(item.product_id)
             if product:
                await self.product_service.add_quantity(product, item.quantity)
 
         self.order_repo.delete_order(order)
-        return True, "Заказ успешно удален"
+        return f"🗑️ Заказ {order.id} успешно удален!"
 
     def get_statistics(self, start_date: datetime, end_date: datetime) -> Dict:
         """Get order statistics for a period"""
         orders = self.order_repo.get_completed_orders_by_period(start_date, end_date)
 
-        total_revenue = sum(order.total for order in orders)
+        total_sum = sum(order.total for order in orders)
         total_cost = sum(order.total_cost for order in orders)
         ideal_profit = sum(order.ideal_profit for order in orders)
         actual_profit = sum(order.actual_profit for order in orders)
@@ -99,32 +78,24 @@ class OrderService:
         return {
             "orders": orders,
             "count": len(orders),
-            "gross_revenue": total_revenue,
+            "total_sum": total_sum,
             "total_cost": total_cost,
             "ideal_profit": ideal_profit,
             "total_adjustments": total_adjustments,
             "net_profit": actual_profit
         }
 
-    def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> Tuple[bool, str]:
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> None:
         """Add profit adjustment to order"""
-        if order.status != OrderStatus.PENDING:
-            return False, "Невозможно изменить профит завершенного заказа"
-
         self.order_repo.add_profit_adjustment(order, amount, reason)
-        return True, "Корректировка профита успешно добавлена"
 
     def get_profit_adjustments(self, order_id: str) -> List[ProfitAdjustment]:
         """Get all profit adjustments for an order"""
         return self.order_repo.get_profit_adjustments(order_id)
 
-    def delete_profit_adjustment(self, adjustment_id: int) -> Tuple[bool, str]:
+    def delete_profit_adjustment(self, adjustment_id: int) -> None:
         """Delete a profit adjustment"""
-        try:
-            self.order_repo.delete_profit_adjustment(adjustment_id)
-            return True, "Корректировка удалена"
-        except Exception as e:
-            return False, f"Ошибка при удалении корректировки: {e}"
+        self.order_repo.delete_profit_adjustment(adjustment_id)
 
     @staticmethod
     def get_completion_date_options(order: Order) -> List[Tuple[date, str]]:
@@ -139,27 +110,4 @@ class OrderService:
     @staticmethod
     def get_date_period(period: str) -> Tuple[datetime, datetime, str]:
         """Get start and end dates for a period"""
-        now = datetime.now()
-
-        if period == "today":
-            start_date = datetime(now.year, now.month, now.day)
-            end_date = now
-            name = "сегодня"
-        elif period == "yesterday":
-            yesterday = now - timedelta(days=1)
-            start_date = datetime(yesterday.year, yesterday.month, yesterday.day)
-            end_date = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59)
-            name = "вчера"
-        elif period == "week":
-            start_of_week = now - timedelta(days=now.weekday())
-            start_date = datetime(start_of_week.year, start_of_week.month, start_of_week.day)
-            end_date = now
-            name = "эта неделя"
-        elif period == "month":
-            start_date = datetime(now.year, now.month, 1)
-            end_date = now
-            name = "этот месяц"
-        else:
-            raise ValueError("Invalid period")
-
-        return start_date, end_date, name
+        return build_date_period(period)

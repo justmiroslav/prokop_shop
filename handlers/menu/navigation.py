@@ -27,7 +27,7 @@ async def back_to_order_actions(callback: CallbackQuery, state: FSMContext, orde
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await callback.answer()
 
@@ -47,7 +47,8 @@ async def back_to_categories(callback: CallbackQuery, state: FSMContext):
     """Go back to categories selection"""
     data = await state.get_data()
     order_id = data.get("order_id")
-    order_text = f"Заказ {order_id}\n\nВыбери категорию товара" if order_id else "Выбери категорию товара"
+    prefix = f"Заказ {order_id}\n\n" if order_id else ""
+    order_text = f"{prefix}Выбери категорию товара"
 
     await callback.message.edit_text(order_text, reply_markup=get_category_keyboard())
     await callback.answer()
@@ -92,7 +93,7 @@ async def cancel_operation(callback: CallbackQuery, state: FSMContext, order_ser
 
     if order_id and new_action:
         order = order_service.get_order(order_id)
-        order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+        order_text = f"Заказ {order.id}\n" + format_order_msg(order)
         await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
         await state.update_data(context=context, order_id=order.id, action=action)
     else:

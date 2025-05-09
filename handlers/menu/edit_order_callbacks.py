@@ -3,7 +3,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from repository.order_repository import OrderRepository
-from utils.keyboards import get_quantity_keyboard, get_order_actions_keyboard
+from utils.keyboards import get_quantity_keyboard, get_order_actions_keyboard, get_order_items_keyboard
 from handlers.menu.navigation import back_to_order_items, cancel_operation
 from utils.shit_utils import format_order_msg
 from utils.states import OrderStates
@@ -19,21 +19,18 @@ async def remove_item(callback: CallbackQuery, state: FSMContext, order_service:
     order_id = data.get("order_id")
 
     item = order_service.get_order_item(item_id)
-    success, message = await order_service.remove_order_item(item)
-    if not success:
-        await callback.message.edit_text(f"Ошибка: {message}", reply_markup=get_order_actions_keyboard())
-        await callback.answer()
-        return
+    await order_service.remove_order_item(item)
 
     order = order_service.get_order(order_id)
     if not order or not order.items:
-        await callback.message.edit_text(f"Товары из заказа {order_id} удалены", reply_markup=get_order_actions_keyboard())
+        await callback.message.edit_text(f"Заказ {order.id}\n" + format_order_msg(order), reply_markup=get_order_actions_keyboard())
         await callback.answer()
         return
 
-    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
-    await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
-    await callback.answer(message)
+    await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для удаления",
+        reply_markup=get_order_items_keyboard(order.items, "remove_item")
+    )
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("edit_item:"))
 async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_repo: OrderRepository):
@@ -65,14 +62,10 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
     await state.update_data(context="orders", order_id=order_id, action="edit")
 
     item = order_service.get_order_item(item_id)
-    success, message = await order_service.update_order_item_quantity(item, new_quantity)
-    if not success:
-        await callback.message.edit_text(f"Ошибка: {message}", reply_markup=get_order_actions_keyboard())
-        await callback.answer()
-        return
+    await order_service.update_order_item_quantity(item, new_quantity)
 
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n\n" + format_order_msg(order)
+    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await callback.answer()

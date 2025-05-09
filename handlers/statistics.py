@@ -33,12 +33,13 @@ async def show_statistics(message: Message, order_service: OrderService):
         return
 
     stats_text = f"📊 *Статистика за {period_name}*\n\n"
-    stats_text += f"Всего заказов: *{stats['count']}*\n\n"
-    stats_text += f"Общая выручка: *{format_price(stats['gross_revenue'])} грн*\n\n"
+    stats_text += f"Всего заказов: *{stats['count']}*\n"
+    stats_text += f"Общая сумма заказов: *{format_price(stats['total_sum'])} грн*\n"
+    stats_text += f"Себестоимость заказов: *{format_price(stats['total_cost'])} грн*\n"
 
     if stats["total_adjustments"] != 0:
-        stats_text += f"Расчетная прибыль: *{format_price(stats['ideal_profit'])} грн*\n\n"
-        stats_text += f"Сумма корректировок: *{format_price(stats['total_adjustments'])} грн*\n\n"
+        stats_text += f"Расчетная прибыль: *{format_price(stats['ideal_profit'])} грн*\n"
+        stats_text += f"Сумма корректировок: *{format_price(stats['total_adjustments'])} грн*\n"
 
     stats_text += f"Чистая прибыль: *{format_price(stats['net_profit'])} грн*"
 
@@ -57,25 +58,25 @@ def create_detailed_report(stats, period_name):
     detailed_report.write(f"Статистика по заказам за {period_name}\n\n")
 
     for order in stats["orders"]:
-        detailed_report.write(f"Заказ #{order.id}\n")
+        detailed_report.write(f"----Заказ {order.id}----\n")
         detailed_report.write(f"Дата завершения: {order.completed_at.strftime('%d.%m.%Y')}\n")
-        detailed_report.write(f"Сумма: {format_price(order.total)} грн\n")
-
-        if order.total_adjustments != 0:
-            detailed_report.write(f"Расчетная прибыль: {format_price(order.ideal_profit)} грн\n")
-
-            detailed_report.write("Корректировки:\n")
-            for adj in order.adjustments:
-                prefix = "+" if adj.amount > 0 else "-"
-                detailed_report.write(f"{prefix} {format_price(adj.amount)} грн: {adj.reason}\n")
-
-            detailed_report.write(f"Итоговая прибыль: {format_price(order.actual_profit)} грн\n")
-        else:
-            detailed_report.write(f"Прибыль: {format_price(order.profit)} грн\n")
 
         detailed_report.write("\nТовары:\n")
         for item in order.items:
-            detailed_report.write(f"- {item.product.full_name} x{item.quantity} шт.\n")
+            detailed_report.write(f"- {item.product.full_name} x{item.quantity}\n")
+
+        if order.total_adjustments != 0:
+            detailed_report.write("\nКорректировки:\n")
+            for adj in order.adjustments:
+                prefix = "+" if adj.amount > 0 else "-"
+                detailed_report.write(f"{prefix} {format_price(abs(adj.amount))} грн: {adj.reason}\n")
+
+            detailed_report.write(f"\nСумма: {format_price(order.total)} грн\n")
+            detailed_report.write(f"Расчетная прибыль: {format_price(order.ideal_profit)} грн\n")
+            detailed_report.write(f"Итоговая прибыль: {format_price(order.actual_profit)} грн\n")
+        else:
+            detailed_report.write(f"\nСумма: {format_price(order.total)} грн\n")
+            detailed_report.write(f"Прибыль: {format_price(order.profit)} грн\n")
 
         detailed_report.write("\n")
 

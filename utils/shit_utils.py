@@ -23,6 +23,9 @@ def format_customer_message(order) -> str:
     """Format customer message for Telegram"""
     message = "🛒 *Ваше замовлення:*\n\n"
 
+    if not order.items:
+        return "Замовлення пусте"
+
     for i, item in enumerate(order.items, 1):
         item_total = item.price * item.quantity
         message += f"- {item.product.full_name} x{item.quantity} = {format_price(item_total)} грн\n"
@@ -33,25 +36,24 @@ def format_customer_message(order) -> str:
 
 def format_order_msg(order: Order) -> str:
     """Format order message for Telegram"""
-    order_text = "Товары:\n"
+    if not order.items:
+        return "Товары отсутствуют"
 
-    for i, item in enumerate(order.items, 1):
+    order_text = "\nТовары:\n"
+    for item in order.items:
         item_total = item.price * item.quantity
         order_text += f"- {item.product.full_name} x{item.quantity} - {format_price(item_total)} грн\n"
 
-    order_text += f"\nСума: {format_price(order.total)} грн"
-
     if order.adjustments:
-        order_text += f", Расчетная прибыль: {format_price(order.ideal_profit)} грн\n"
         order_text += "\nКорректировки:\n"
-
         for adj in order.adjustments:
-            prefix = "+" if adj.amount > 0 else ""
-            order_text += f"\n{prefix} {format_price(adj.amount)} грн: {adj.reason}"
+            prefix = "+" if adj.amount > 0 else "-"
+            order_text += f"{prefix} {format_price(abs(adj.amount))} грн: {adj.reason}\n"
 
-        order_text += f"\nИтоговая прибыль: {format_price(order.actual_profit)} грн"
+        order_text += f"\nСумма: {format_price(order.total)} грн, Расчетная прибыль: {format_price(order.ideal_profit)} грн\n"
+        order_text += f"Итоговая прибыль: {format_price(order.actual_profit)} грн\n\n"
     else:
-        order_text += f", Прибыль: {format_price(order.ideal_profit)} грн"
+        order_text += f"\nСумма: {format_price(order.total)} грн, Прибыль: {format_price(order.ideal_profit)} грн\n"
 
     return order_text
 
@@ -67,3 +69,30 @@ def get_date_range(order: Order) -> List[Tuple[date, str]]:
         dates.append((current_date, date_str))
 
     return dates
+
+def build_date_period(period: str) -> Tuple[datetime, datetime, str]:
+    """Get start and end dates for a period"""
+    now = datetime.now()
+
+    if period == "today":
+        start_date = datetime(now.year, now.month, now.day)
+        end_date = now
+        name = "сегодня"
+    elif period == "yesterday":
+        yesterday = now - timedelta(days=1)
+        start_date = datetime(yesterday.year, yesterday.month, yesterday.day)
+        end_date = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59)
+        name = "вчера"
+    elif period == "week":
+        start_of_week = now - timedelta(days=now.weekday())
+        start_date = datetime(start_of_week.year, start_of_week.month, start_of_week.day)
+        end_date = now
+        name = "эта неделя"
+    elif period == "month":
+        start_date = datetime(now.year, now.month, 1)
+        end_date = now
+        name = "этот месяц"
+    else:
+        raise ValueError("Invalid period")
+
+    return start_date, end_date, name
