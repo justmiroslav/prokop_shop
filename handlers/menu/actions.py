@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from utils.keyboards import get_orders_menu, get_category_keyboard, get_active_orders_keyboard
+from utils.keyboards import get_orders_menu, get_category_keyboard, get_order_ids_keyboard, get_date_keyboard
 from utils.config import CONFIG
 from service.order_service import OrderService
 from service.product_service import ProductService
@@ -37,10 +37,25 @@ async def handle_order_commands(message: Message, state: FSMContext, order_servi
 
     action, message_text, callback_prefix = CONFIG.ACTIONS_MAP[message.text]
     response = await message.answer(message_text,
-        reply_markup=get_active_orders_keyboard(active_order_ids, callback_prefix)
+        reply_markup=get_order_ids_keyboard(active_order_ids, callback_prefix)
     )
 
     await state.update_data(action=action, inline_message_id=response.message_id)
+
+@router.message(F.text == "🔄 Восстановить заказ")
+async def handle_restore_order(message: Message, state: FSMContext, order_service: OrderService):
+    """Start order restoration process - show date selection"""
+    dates_with_orders = order_service.get_dates_with_completed_orders()
+
+    if not dates_with_orders:
+        await message.answer("За последние 3 дня нет завершенных заказов", reply_markup=get_orders_menu())
+        return
+
+    response = await message.answer("Выбери дату, за которую нужно восстановить заказ",
+        reply_markup=get_date_keyboard(dates_with_orders, "restore_date")
+    )
+
+    await state.update_data(inline_message_id=response.message_id)
 
 @router.message(F.text.in_({"➕ Добавить количество", "➖ Убрать количество"}))
 async def start_product_operation(message: Message, state: FSMContext, product_service: ProductService):

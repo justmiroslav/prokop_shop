@@ -4,7 +4,7 @@ from datetime import datetime, date
 from database.models import Order, OrderItem, Product, ProfitAdjustment
 from repository.order_repository import OrderRepository
 from service.product_service import ProductService
-from utils.shit_utils import get_date_range, format_customer_message, build_date_period
+from utils.shit_utils import get_date_range, format_customer_message, build_date_period, format_dates_with_orders
 
 class OrderService:
     def __init__(self, order_repo: OrderRepository, product_service: ProductService):
@@ -18,6 +18,17 @@ class OrderService:
     def get_active_order_ids(self) -> List[str]:
         """Get IDs of all active orders"""
         return self.order_repo.get_active_order_ids()
+
+    def get_dates_with_completed_orders(self, days_limit: int = 3) -> List[Tuple[date, str]]:
+        """Get dates when orders were completed within the last N days"""
+        completed_dates = sorted(self.order_repo.get_completed_dates(days_limit))
+        if completed_dates:
+            return format_dates_with_orders(sorted(completed_dates, reverse=True))
+        return []
+
+    def get_completed_order_ids_by_date(self, date_value: date) -> List[str]:
+        """Get IDs of orders completed on a specific date"""
+        return self.order_repo.get_completed_order_ids_by_date(date_value)
 
     def get_order(self, order_id: str) -> Optional[Order]:
         """Get an order by ID"""
@@ -55,12 +66,17 @@ class OrderService:
         self.order_repo.complete_order(order, completion_date)
         return True, f"✅ Заказ {order.id} успешно завершен!"
 
+    def restore_order(self, order: Order) -> str:
+        """Restore a completed order to pending state"""
+        self.order_repo.restore_order(order)
+        return f"✅ Заказ {order.id} успешно активирован!"
+
     async def delete_order(self, order: Order) -> str:
         """Delete an order and return products to inventory"""
         for item in order.items:
             product = self.product_service.get_product_by_id(item.product_id)
             if product:
-               await self.product_service.add_quantity(product, item.quantity)
+                await self.product_service.add_quantity(product, item.quantity)
 
         self.order_repo.delete_order(order)
         return f"🗑️ Заказ {order.id} успешно удален!"

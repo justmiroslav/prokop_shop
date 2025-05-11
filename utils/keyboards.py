@@ -28,7 +28,7 @@ def get_orders_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
         keyboard=[
             [KeyboardButton(text="➕ Новый заказ"), KeyboardButton(text="✅ Завершить заказ"), KeyboardButton(text="🗑️ Удалить заказ")],
-            [KeyboardButton(text="📝 Редактировать заказ"), KeyboardButton(text="🔍 Активные заказы")],
+            [KeyboardButton(text="📝 Редактировать заказ"), KeyboardButton(text="🔄 Восстановить заказ"), KeyboardButton(text="🔍 Активные заказы")],
             [KeyboardButton(text="💬 Сообщение клиенту"), KeyboardButton(text="🔙 Назад")]
         ]
     )
@@ -40,12 +40,21 @@ def get_products_menu() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_active_orders_keyboard(order_ids: List[str], prefix: str) -> InlineKeyboardMarkup:
+def get_order_ids_keyboard(order_ids: List[str], prefix: str) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=order_id, callback_data=f"{prefix}:{order_id}")
         for order_id in order_ids
     ]
     keyboard = format_inline_kb(buttons, 3)
+    keyboard.append([get_cancel_button()])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_date_keyboard(date_options: List[Tuple[date, str]], prefix: str) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(text=date_text, callback_data=f"{prefix}:{d.isoformat()}")
+        for d, date_text in date_options
+    ]
+    keyboard = format_inline_kb(buttons, 2)
     keyboard.append([get_cancel_button()])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -117,15 +126,6 @@ def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardM
 
     keyboard = format_inline_kb(buttons, 1)
     keyboard.append([get_back_button("back_to_order_actions")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def get_completion_date_keyboard(date_options: List[Tuple[date, str]]) -> InlineKeyboardMarkup:
-    buttons = [
-        InlineKeyboardButton(text=date_text, callback_data=f"completion_date:{d.isoformat()}")
-        for d, date_text in date_options
-    ]
-    keyboard = format_inline_kb(buttons, 2)
-    keyboard.append([get_cancel_button()])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_adjustment_keyboard() -> InlineKeyboardMarkup:

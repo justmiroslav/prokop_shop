@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime
+from typing import List, Optional, Set
+from datetime import datetime, timedelta, date
 import uuid
 
 from database.models import Order, OrderItem, OrderStatus, ProfitAdjustment
@@ -17,6 +17,27 @@ class OrderRepository:
         """Get all active order IDs"""
         return [order.id for order in self.session.query(Order.id).filter(
             Order.status == OrderStatus.PENDING
+        ).all()]
+
+    def get_completed_dates(self, days_limit: int) -> Set[date]:
+        """Get set of dates when orders were completed within the last N days"""
+        date_limit = datetime.now() - timedelta(days=days_limit)
+        completed_orders = self.session.query(Order.completed_at).filter(
+            Order.status == OrderStatus.COMPLETED,
+            Order.completed_at >= date_limit
+        ).all()
+
+        return {order.completed_at.date() for order in completed_orders if order.completed_at}
+
+    def get_completed_order_ids_by_date(self, date_value: date) -> List[str]:
+        """Get IDs of orders completed on a specific date"""
+        next_day = datetime.combine(date_value, datetime.min.time()) + timedelta(days=1)
+        day_start = datetime.combine(date_value, datetime.min.time())
+
+        return [order.id for order in self.session.query(Order.id).filter(
+            Order.status == OrderStatus.COMPLETED,
+            Order.completed_at >= day_start,
+            Order.completed_at < next_day
         ).all()]
 
     def get_completed_orders_by_period(self, start_date: datetime, end_date: datetime) -> List[Order]:
@@ -69,6 +90,13 @@ class OrderRepository:
         """Complete an order with optional specific date"""
         order.status = OrderStatus.COMPLETED
         order.completed_at = completion_date or datetime.now()
+        self.session.commit()
+        return order
+
+    def restore_order(self, order: Order) -> Order:
+        """Restore a completed order to pending state"""
+        order.status = OrderStatus.PENDING
+        order.completed_at = None
         self.session.commit()
         return order
 

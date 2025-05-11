@@ -57,6 +57,11 @@ def format_order_msg(order: Order) -> str:
 
     return order_text
 
+def format_date_for_display(date_value: date) -> str:
+    """Format date for display in Telegram messages"""
+    days_diff = (datetime.now().date() - date_value).days
+    return "Сегодня" if days_diff == 0 else "Вчера" if days_diff == 1 else f"{date_value.day} {CONFIG.MONTHS[date_value.month]}"
+
 def get_date_range(order: Order) -> List[Tuple[date, str]]:
     """Get available completion date options"""
     today = datetime.now().date()
@@ -65,10 +70,14 @@ def get_date_range(order: Order) -> List[Tuple[date, str]]:
     dates = []
     for i in range((today - earliest_date).days + 1):
         current_date = today - timedelta(days=i)
-        date_str = "Сегодня" if i == 0 else "Вчера" if i == 1 else f"{current_date.day} {CONFIG.MONTHS[current_date.month]}"
+        date_str = format_date_for_display(current_date)
         dates.append((current_date, date_str))
 
     return dates
+
+def format_dates_with_orders(completed_dates: List[date]) -> List[Tuple[date, str]]:
+    """Format list of dates that have completed orders"""
+    return [(d, format_date_for_display(d)) for d in completed_dates]
 
 def build_date_period(period: str) -> Tuple[datetime, datetime, str]:
     """Get start and end dates for a period"""

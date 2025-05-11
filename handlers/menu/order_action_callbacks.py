@@ -1,16 +1,17 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
-from datetime import datetime
+from datetime import datetime, date
 
 from utils.keyboards import (
     get_orders_menu,
     get_order_actions_keyboard,
     get_order_items_keyboard,
     get_category_keyboard,
-    get_completion_date_keyboard,
+    get_date_keyboard,
     get_adjustment_keyboard,
-    get_all_adjustments_keyboard
+    get_all_adjustments_keyboard,
+    get_order_ids_keyboard
 )
 from utils.shit_utils import format_order_msg, format_price
 from service.order_service import OrderService
@@ -39,7 +40,7 @@ async def select_completion_date(callback: CallbackQuery, state: FSMContext, ord
     date_options = order_service.get_completion_date_options(order)
     await callback.message.edit_text(
         f"Выбери дату завершения заказа {order.id}",
-        reply_markup=get_completion_date_keyboard(date_options)
+        reply_markup=get_date_keyboard(date_options, "completion_date")
     )
 
     await state.update_data(order_id=order_id)
@@ -60,6 +61,32 @@ async def complete_order(callback: CallbackQuery, state: FSMContext, order_servi
         await callback.message.edit_text(f"Ошибка: {message}")
     else:
         await callback.message.edit_text(f"{message}\n\nСумма заказа: {format_price(order.total)} грн\nЧистая прибыль: {format_price(order.actual_profit)} грн")
+
+    await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
+    await state.clear()
+    await state.update_data(context="orders")
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("restore_date:"))
+async def select_restore_date(callback: CallbackQuery, order_service: OrderService):
+    """Handle restore date selection - show orders completed on that date"""
+    date_str = callback.data.split(":")[1]
+    selected_date = date.fromisoformat(date_str)
+
+    completed_order_ids = order_service.get_completed_order_ids_by_date(selected_date)
+    await callback.message.edit_text(f"Выбери заказ для активации",
+        reply_markup=get_order_ids_keyboard(completed_order_ids, "restore_order")
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("restore_order:"))
+async def restore_order(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
+    """Restore a completed order to pending state"""
+    order_id = callback.data.split(":")[1]
+    order = order_service.get_order(order_id)
+
+    message = order_service.restore_order(order)
+    await callback.message.edit_text(message)
 
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
