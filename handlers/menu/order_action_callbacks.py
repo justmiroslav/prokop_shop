@@ -60,7 +60,7 @@ async def complete_order(callback: CallbackQuery, state: FSMContext, order_servi
     if not success:
         await callback.message.edit_text(f"Ошибка: {message}")
     else:
-        await callback.message.edit_text(f"{message}\n\nСумма заказа: {format_price(order.total)} грн\nЧистая прибыль: {format_price(order.actual_profit)} грн")
+        await callback.message.edit_text(f"{message}\n\nСумма заказа: {format_price(order.total)} грн\nПрибыль: {format_price(order.profit)} грн")
 
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
@@ -113,7 +113,8 @@ async def generate_customer_message(callback: CallbackQuery, state: FSMContext, 
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    await callback.message.edit_text(order_service.get_customer_message(order))
+    message_text = order_service.get_customer_message(order)
+    await callback.message.edit_text(message_text, parse_mode="HTML")
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
     await state.update_data(context="orders")

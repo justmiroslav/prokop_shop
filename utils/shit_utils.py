@@ -21,7 +21,7 @@ def format_price(value: Union[float, int, Decimal]) -> str:
 
 def format_customer_message(order) -> str:
     """Format customer message for Telegram"""
-    message = "🛒 *Ваше замовлення:*\n\n"
+    message = "<b>🛒 Ваше замовлення:</b>\n\n"
 
     if not order.items:
         return "Замовлення пусте"
@@ -30,7 +30,13 @@ def format_customer_message(order) -> str:
         item_total = item.price * item.quantity
         message += f"- {item.product.full_name} x{item.quantity} = {format_price(item_total)} грн\n"
 
-    message += f"\n💰 *До сплати:* {format_price(order.total)} грн"
+    discount = order.discount
+
+    if discount < 0:
+        message += f"\n<b>💰 До сплати:</b> <s>{format_price(order.total_items)}</s> {format_price(order.total)} грн"
+        message += f"\n<b>🎁 Знижка:</b> {format_price(abs(discount))} грн"
+    else:
+        message += f"\n<b>💰 До сплати:</b> {format_price(order.total_items)} грн"
 
     return message
 
@@ -45,15 +51,14 @@ def format_order_msg(order: Order) -> str:
         order_text += f"- {item.product.full_name} x{item.quantity} - {format_price(item_total)} грн\n"
 
     if order.adjustments:
+        order_text += f"\nСумма товаров: {format_price(order.total_items)} грн\n"
+
         order_text += "\nКорректировки:\n"
         for adj in order.adjustments:
             prefix = "+" if adj.amount > 0 else "-"
             order_text += f"{prefix} {format_price(abs(adj.amount))} грн: {adj.reason}\n"
 
-        order_text += f"\nСумма: {format_price(order.total)} грн, Расчетная прибыль: {format_price(order.ideal_profit)} грн\n"
-        order_text += f"Итоговая прибыль: {format_price(order.actual_profit)} грн\n\n"
-    else:
-        order_text += f"\nСумма: {format_price(order.total)} грн, Прибыль: {format_price(order.ideal_profit)} грн\n"
+    order_text += f"\nСумма: {format_price(order.total)} грн, Прибыль: {format_price(order.profit)} грн\n"
 
     return order_text
 

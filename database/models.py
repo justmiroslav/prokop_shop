@@ -58,28 +58,28 @@ class Order(Base):
     adjustments = relationship("ProfitAdjustment", back_populates="order", cascade="all, delete-orphan")
 
     @property
-    def total(self):
+    def total_items(self):
         return sum(item.price * item.quantity for item in self.items)
-
-    @property
-    def total_cost(self):
-        return sum(item.cost * item.quantity for item in self.items)
-
-    @property
-    def ideal_profit(self):
-        return self.total - self.total_cost
 
     @property
     def total_adjustments(self):
         return sum(adj.amount for adj in self.adjustments)
 
     @property
-    def actual_profit(self):
-        return self.ideal_profit + self.total_adjustments
+    def total(self):
+        return self.total_items + self.total_adjustments
+
+    @property
+    def total_cost(self):
+        return sum(item.cost * item.quantity for item in self.items)
 
     @property
     def profit(self):
-        return self.actual_profit
+        return self.total - self.total_cost
+
+    @property
+    def discount(self):
+        return sum(adj.amount for adj in self.adjustments if adj.amount < 0)
 
     def __repr__(self):
         return f"<Order {self.id} ({self.status.value})>"

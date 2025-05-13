@@ -87,18 +87,16 @@ class OrderService:
 
         total_sum = sum(order.total for order in orders)
         total_cost = sum(order.total_cost for order in orders)
-        ideal_profit = sum(order.ideal_profit for order in orders)
-        actual_profit = sum(order.actual_profit for order in orders)
         total_adjustments = sum(order.total_adjustments for order in orders)
+        profit = sum(order.profit for order in orders)
 
         return {
             "orders": orders,
             "count": len(orders),
             "total_sum": total_sum,
             "total_cost": total_cost,
-            "ideal_profit": ideal_profit,
             "total_adjustments": total_adjustments,
-            "net_profit": actual_profit
+            "net_profit": profit
         }
 
     def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> None:
