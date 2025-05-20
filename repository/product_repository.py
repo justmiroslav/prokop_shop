@@ -11,13 +11,6 @@ class ProductRepository:
         """Get product by ID"""
         return self.session.query(Product).filter(Product.id == product_id).first()
 
-    def get_by_sheet_info(self, sheet_name: str, row: int) -> Optional[Product]:
-        """Get product by sheet name and row"""
-        return self.session.query(Product).filter(
-            Product.sheet_name == sheet_name,
-            Product.sheet_row == row
-        ).first()
-
     def get_by_name_attribute(self, sheet_name: str, name: str, attribute: str) -> Optional[Product]:
         """Get product by category, name and attribute"""
         return self.session.query(Product).filter(

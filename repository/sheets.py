@@ -53,14 +53,10 @@ class SheetManager:
                     price = float(row[CONFIG.COL_PRICE])
                     cost = float(row[CONFIG.COL_COST])
 
-                    product = self.product_repo.get_by_sheet_info(sheet_name, i)
+                    product = self.product_repo.get_by_name_attribute(sheet_name, name, attribute)
 
                     if product:
-                        if (product.name != name or
-                                product.attribute != attribute or
-                                product.quantity != quantity or
-                                product.price != price or
-                                product.cost != cost):
+                        if product.quantity != quantity or product.price != price or product.cost != cost:
                             product.name = name
                             product.attribute = attribute
                             product.quantity = quantity
@@ -68,14 +64,9 @@ class SheetManager:
                             product.cost = cost
                             self.product_repo.update(product)
                     else:
-                        product = Product(
-                            sheet_name=sheet_name,
-                            sheet_row=i,
-                            name=name,
-                            attribute=attribute,
-                            quantity=quantity,
-                            price=price,
-                            cost=cost
+                        product = Product(sheet_name=sheet_name, sheet_row=i,
+                            name=name, attribute=attribute, quantity=quantity,
+                            price=price, cost=cost
                         )
                         self.product_repo.create(product)
 
