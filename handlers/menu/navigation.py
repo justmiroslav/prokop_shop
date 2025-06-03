@@ -10,7 +10,8 @@ from utils.keyboards import (
     get_attribute_keyboard,
     get_orders_menu,
     get_products_menu,
-    get_statistics_keyboard
+    get_statistics_keyboard,
+    get_order_continue_keyboard
 )
 from utils.config import CONFIG
 from utils.shit_utils import format_order_msg
@@ -20,6 +21,17 @@ from service.product_service import ProductService
 
 router = Router()
 
+@router.callback_query(F.data == "back_to_order_continue")
+async def back_to_order_continue(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    order = order_service.get_order(order_id)
+
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
+    await callback.message.edit_text(order_text, reply_markup=get_order_continue_keyboard())
+    await callback.answer()
+    return
+
 @router.callback_query(F.data == "back_to_order_actions")
 async def back_to_order_actions(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Go back to order actions"""
@@ -27,7 +39,7 @@ async def back_to_order_actions(callback: CallbackQuery, state: FSMContext, orde
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await callback.answer()
 
@@ -38,7 +50,7 @@ async def back_to_order_items(callback: CallbackQuery, state: FSMContext, order_
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
 
-    await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для изменения количества",
+    await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для изменения количества",
         reply_markup=get_order_items_keyboard(order.items, "edit_item"))
     await callback.answer()
 
@@ -93,7 +105,7 @@ async def cancel_operation(callback: CallbackQuery, state: FSMContext, order_ser
 
     if order_id and new_action:
         order = order_service.get_order(order_id)
-        order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+        order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
         await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
         await state.update_data(context=context, order_id=order.id, action=action)
     else:

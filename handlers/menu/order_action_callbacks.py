@@ -11,9 +11,10 @@ from utils.keyboards import (
     get_date_keyboard,
     get_adjustment_keyboard,
     get_all_adjustments_keyboard,
-    get_order_ids_keyboard
+    get_order_names_keyboard
 )
-from utils.shit_utils import format_order_msg, format_price
+from utils.shit_utils import format_order_msg
+from utils.config import CONFIG
 from service.order_service import OrderService
 
 router = Router()
@@ -24,11 +25,17 @@ async def view_order(callback: CallbackQuery, state: FSMContext, order_service: 
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text)
-    await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
-    await state.update_data(context="orders")
+
+    action, message_text, callback_prefix = CONFIG.ACTIONS_MAP["🔍 Активные заказы"]
+    order_data = order_service.get_active_order_names()
+    response = await callback.message.answer(message_text,
+        reply_markup=get_order_names_keyboard(order_data, callback_prefix)
+    )
+
+    await state.update_data(context="orders", action=action, inline_message_id=response.message_id)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("complete_order:"))
@@ -38,8 +45,7 @@ async def select_completion_date(callback: CallbackQuery, state: FSMContext, ord
     order = order_service.get_order(order_id)
 
     date_options = order_service.get_completion_date_options(order)
-    await callback.message.edit_text(
-        f"Выбери дату завершения заказа {order.id}",
+    await callback.message.edit_text(f"Выбери дату завершения заказа {order.display_name}",
         reply_markup=get_date_keyboard(date_options, "completion_date")
     )
 
@@ -60,7 +66,7 @@ async def complete_order(callback: CallbackQuery, state: FSMContext, order_servi
     if not success:
         await callback.message.edit_text(f"Ошибка: {message}")
     else:
-        await callback.message.edit_text(f"{message}\n\nСумма заказа: {format_price(order.total)} грн\nПрибыль: {format_price(order.profit)} грн")
+        await callback.message.edit_text(f"{message}\n\n" + format_order_msg(order))
 
     await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
     await state.clear()
@@ -73,9 +79,9 @@ async def select_restore_date(callback: CallbackQuery, order_service: OrderServi
     date_str = callback.data.split(":")[1]
     selected_date = date.fromisoformat(date_str)
 
-    completed_order_ids = order_service.get_completed_order_ids_by_date(selected_date)
+    order_data = order_service.get_completed_orders_display_names_by_date(selected_date)
     await callback.message.edit_text(f"Выбери заказ для активации",
-        reply_markup=get_order_ids_keyboard(completed_order_ids, "restore_order")
+        reply_markup=get_order_names_keyboard(order_data, "restore_order")
     )
     await callback.answer()
 
@@ -100,11 +106,19 @@ async def delete_order(callback: CallbackQuery, state: FSMContext, order_service
     order = order_service.get_order(order_id)
 
     message = await order_service.delete_order(order)
-    await callback.message.edit_text(message)
-
-    await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
+    order_data = order_service.get_active_order_names()
     await state.clear()
-    await state.update_data(context="orders")
+
+    if not order_data:
+        await callback.message.edit_text(message)
+        await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
+        await state.update_data(context="orders")
+    else:
+        action, message_text, callback_prefix = CONFIG.ACTIONS_MAP["🗑️ Удалить заказ"]
+        await callback.message.edit_text(message + "\n\n" + message_text,
+            reply_markup=get_order_names_keyboard(order_data, callback_prefix)
+        )
+        await state.update_data(context="orders", action=action)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("customer_msg_order:"))
@@ -126,7 +140,7 @@ async def edit_order(callback: CallbackQuery, state: FSMContext, order_service: 
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order) + "\nВыбери действие"
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order) + "\nВыбери действие"
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await state.update_data(order_id=order.id)
     await callback.answer()
@@ -141,45 +155,36 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
 
     if action == "add_item":
         await state.update_data(new_action="add_item")
-        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери категорию товара", reply_markup=get_category_keyboard())
-
-    elif action == "remove_item":
-        if not order.items:
-            await callback.message.edit_text(f"Заказ {order.id}\n" + format_order_msg(order) + "\nВыбери действие", reply_markup=get_order_actions_keyboard())
-        else:
-            await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для удаления",
-                reply_markup=get_order_items_keyboard(order.items, "remove_item")
-            )
-
-    elif action == "edit_quantity":
-        if not order.items:
-            await callback.message.edit_text(f"Заказ {order.id}\n" + format_order_msg(order) + "\nВыбери действие", reply_markup=get_order_actions_keyboard())
-        else:
-            await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для изменения количества",
-                reply_markup=get_order_items_keyboard(order.items, "edit_item")
-            )
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери категорию товара",
+            reply_markup=get_category_keyboard())
 
     elif action == "edit_profit":
         adjustments = order_service.get_profit_adjustments(order_id)
 
         if adjustments:
-            await callback.message.edit_text(f"Заказ {order.id}\n\nСуществующие корректировки профита",
-                reply_markup=get_all_adjustments_keyboard(adjustments)
-            )
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nСуществующие корректировки профита",
+                reply_markup=get_all_adjustments_keyboard(adjustments))
         else:
-            await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери тип корректировки профита",
-                reply_markup=get_adjustment_keyboard()
-            )
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
+                reply_markup=get_adjustment_keyboard())
+
+    elif not order.items:
+        suffix = "\nВыбери действие" if action in ["remove_item", "edit_quantity"] else "\nРедактирование не может быть завершено с заказом без товаров"
+        await callback.message.edit_text(f"Заказ {order.display_name}\n" + format_order_msg(order) + suffix,
+            reply_markup=get_order_actions_keyboard())
+        await callback.answer()
+        return
+
+    elif action == "remove_item":
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для удаления",
+            reply_markup=get_order_items_keyboard(order.items, "remove_item"))
+
+    elif action == "edit_quantity":
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для изменения количества",
+            reply_markup=get_order_items_keyboard(order.items, "edit_item"))
 
     else:
-        upd_order = order_service.get_order(order_id)
-        if not upd_order.items:
-            order_text = f"Заказ {order.id}\n" + format_order_msg(order) + "\nРедактирование не может быть завершено с заказом без товаров"
-            await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
-            await callback.answer()
-            return
-
-        await callback.message.edit_text(f"✅ Редактирование заказа {upd_order.id} завершено")
+        await callback.message.edit_text(f"✅ Редактирование заказа {order.display_name} завершено")
         await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
         await state.clear()
         await state.update_data(context="orders")

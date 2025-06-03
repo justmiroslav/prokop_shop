@@ -40,10 +40,11 @@ def get_products_menu() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_order_ids_keyboard(order_ids: List[str], prefix: str) -> InlineKeyboardMarkup:
+def get_order_names_keyboard(order_data: List[Tuple[str, str]], prefix: str) -> InlineKeyboardMarkup:
+    """Create keyboard with order display names"""
     buttons = [
-        InlineKeyboardButton(text=order_id, callback_data=f"{prefix}:{order_id}")
-        for order_id in order_ids
+        InlineKeyboardButton(text=display_name, callback_data=f"{prefix}:{order_id}")
+        for order_id, display_name in order_data
     ]
     keyboard = format_inline_kb(buttons, 3)
     keyboard.append([get_cancel_button()])
@@ -103,9 +104,10 @@ def get_quantity_keyboard(max_qty: int, callback_str: str) -> InlineKeyboardMark
 def get_order_continue_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text="➕ Добавить еще товар", callback_data="order_continue:add_more"),
+        InlineKeyboardButton(text="➖ Убрать товар", callback_data="order_continue:remove_item"),
         InlineKeyboardButton(text="✅ Завершить добавление", callback_data="order_continue:finish")
     ]
-    return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons))
+    return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons, 2))
 
 def get_order_actions_keyboard() -> InlineKeyboardMarkup:
     buttons = [
@@ -120,12 +122,13 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
 def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardMarkup:
     buttons = []
     for item in order_items:
-        prefix, suffix = ("❌ ", "") if action_prefix == "remove_item" else ("", f" - x{item.quantity}")
+        prefix, suffix = ("❌ ", "") if action_prefix.startswith("remove") else ("", f" - x{item.quantity}")
         text = f"{prefix}{item.product.full_name}{suffix}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
     keyboard = format_inline_kb(buttons, 1)
-    keyboard.append([get_back_button("back_to_order_actions")])
+    back_navigation = "back_to_order_continue" if action_prefix == "remove_from_new" else "back_to_order_actions"
+    keyboard.append([get_back_button(back_navigation)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_adjustment_keyboard() -> InlineKeyboardMarkup:

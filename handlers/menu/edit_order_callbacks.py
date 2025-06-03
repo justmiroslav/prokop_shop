@@ -3,8 +3,8 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from repository.order_repository import OrderRepository
-from utils.keyboards import get_quantity_keyboard, get_order_actions_keyboard, get_order_items_keyboard
-from handlers.menu.navigation import back_to_order_items, cancel_operation
+from utils.keyboards import get_quantity_keyboard, get_order_items_keyboard, get_order_continue_keyboard, get_order_actions_keyboard
+from handlers.menu.navigation import back_to_order_items, cancel_operation, back_to_order_actions
 from utils.shit_utils import format_order_msg
 from utils.states import OrderStates
 from service.order_service import OrderService
@@ -12,22 +12,24 @@ from service.order_service import OrderService
 router = Router()
 
 @router.callback_query(F.data.startswith("remove_item:"))
+@router.callback_query(F.data.startswith("remove_from_new:"))
 async def remove_item(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Remove item from order"""
-    item_id = int(callback.data.split(":")[1])
+    action, item_id = callback.data.split(":")
     data = await state.get_data()
     order_id = data.get("order_id")
 
-    item = order_service.get_order_item(item_id)
+    item = order_service.get_order_item(int(item_id))
     await order_service.remove_order_item(item)
 
     order = order_service.get_order(order_id)
-    if not order or not order.items:
-        await callback.message.edit_text(f"Заказ {order.id}\n" + format_order_msg(order), reply_markup=get_order_actions_keyboard())
+    if not order or not order.items or action == "remove_from_new":
+        keyboard = get_order_continue_keyboard() if action == "remove_from_new" else get_order_actions_keyboard()
+        await callback.message.edit_text(f"Заказ {order.display_name}\n" + format_order_msg(order), reply_markup=keyboard)
         await callback.answer()
         return
 
-    await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери товар для удаления",
+    await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для удаления",
         reply_markup=get_order_items_keyboard(order.items, "remove_item")
     )
     await callback.answer()
@@ -52,6 +54,8 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
     """Update item quantity"""
     if callback.data == "back_to_order_items":
         return await back_to_order_items(callback, state, order_service)
+    if callback.data == "back_to_order_actions":
+        return await back_to_order_actions(callback, state, order_service)
     if callback.data == "cancel":
         return await cancel_operation(callback, state)
 
@@ -66,6 +70,6 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
 
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
     await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
     await callback.answer()

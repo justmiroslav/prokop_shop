@@ -24,11 +24,9 @@ async def show_statistics(message: Message, order_service: OrderService):
         await message.answer("Ошибка при получении периода", reply_markup=get_statistics_keyboard())
         return
 
-    loading_msg = await message.answer(f"🔍 Подготовка статистики за *{period_name}*...")
     stats = order_service.get_statistics(start_date, end_date)
 
     if not stats["orders"]:
-        await loading_msg.delete()
         await message.answer(f"Заказы за *{period_name}* не найдены", reply_markup=get_statistics_keyboard())
         return
 
@@ -44,7 +42,6 @@ async def show_statistics(message: Message, order_service: OrderService):
 
     detailed_report = create_detailed_report(stats, period_name)
 
-    await loading_msg.delete()
     await message.answer(stats_text, reply_markup=get_statistics_keyboard())
     await message.answer_document(BufferedInputFile(detailed_report.getvalue().encode("utf-8"),
             filename=f"stats_{period}_{start_date.strftime('%Y%m%d')}.txt"),
@@ -57,7 +54,7 @@ def create_detailed_report(stats, period_name):
     detailed_report.write(f"Статистика по заказам за {period_name}\n\n")
 
     for order in stats["orders"]:
-        detailed_report.write(f"----Заказ {order.id}----\n")
+        detailed_report.write(f"----Заказ {order.display_name}----\n")
         detailed_report.write(f"Дата завершения: {order.completed_at.strftime('%d.%m.%Y')}\n")
 
         detailed_report.write("\nТовары:\n")

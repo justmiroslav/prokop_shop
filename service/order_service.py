@@ -15,9 +15,9 @@ class OrderService:
         """Create a new pending order"""
         return self.order_repo.create_order()
 
-    def get_active_order_ids(self) -> List[str]:
-        """Get IDs of all active orders"""
-        return self.order_repo.get_active_order_ids()
+    def get_active_order_names(self) -> List[Tuple[str, str]]:
+        """Get names of all active orders"""
+        return self.order_repo.get_active_order_names()
 
     def get_dates_with_completed_orders(self, days_limit: int = 3) -> List[Tuple[date, str]]:
         """Get dates when orders were completed within the last N days"""
@@ -26,17 +26,25 @@ class OrderService:
             return format_dates_with_orders(sorted(completed_dates, reverse=True))
         return []
 
-    def get_completed_order_ids_by_date(self, date_value: date) -> List[str]:
-        """Get IDs of orders completed on a specific date"""
-        return self.order_repo.get_completed_order_ids_by_date(date_value)
+    def get_completed_orders_display_names_by_date(self, date_value: date) -> List[Tuple[str, str]]:
+        """Get completed orders with display names by date (id, display_name)"""
+        return self.order_repo.get_completed_order_names_by_date(date_value)
 
     def get_order(self, order_id: str) -> Optional[Order]:
         """Get an order by ID"""
         return self.order_repo.get_by_id(order_id)
 
+    def get_all_order_names(self) -> List[str]:
+        """Get all order names"""
+        return self.order_repo.get_all_order_names()
+
     def get_order_item(self, item_id: int) -> Optional[OrderItem]:
         """Get an order item by ID"""
         return self.order_repo.get_order_item(item_id)
+
+    def update_order_name(self, order: Order, name: str) -> Order:
+        """Update order name"""
+        return self.order_repo.update_order_name(order, name)
 
     async def add_product_to_order(self, order: Order, product: Product, quantity: int) -> None:
         """Add a product to an order, reducing product quantity"""
@@ -64,12 +72,12 @@ class OrderService:
             return False, "Дата завершения не может быть раньше даты создания заказа"
 
         self.order_repo.complete_order(order, completion_date)
-        return True, f"✅ Заказ {order.id} успешно завершен!"
+        return True, f"✅ Заказ {order.display_name} успешно завершен!"
 
     def restore_order(self, order: Order) -> str:
         """Restore a completed order to pending state"""
         self.order_repo.restore_order(order)
-        return f"✅ Заказ {order.id} успешно активирован!"
+        return f"✅ Заказ {order.display_name} успешно активирован!"
 
     async def delete_order(self, order: Order) -> str:
         """Delete an order and return products to inventory"""
@@ -79,7 +87,7 @@ class OrderService:
                 await self.product_service.add_quantity(product, item.quantity)
 
         self.order_repo.delete_order(order)
-        return f"🗑️ Заказ {order.id} успешно удален!"
+        return f"🗑️ Заказ {order.display_name} успешно удален!"
 
     def get_statistics(self, start_date: datetime, end_date: datetime) -> Dict:
         """Get order statistics for a period"""

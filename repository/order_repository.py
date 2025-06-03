@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 from datetime import datetime, timedelta, date
 import uuid
 
@@ -13,11 +13,16 @@ class OrderRepository:
         """Get order by ID"""
         return self.session.query(Order).filter(Order.id == order_id).first()
 
-    def get_active_order_ids(self) -> List[str]:
-        """Get all active order IDs"""
-        return [order.id for order in self.session.query(Order.id).filter(
+    def get_all_order_names(self) -> List[str]:
+        """Get all order names"""
+        return [order.name for order in self.session.query(Order.name).all()]
+
+    def get_active_order_names(self) -> List[Tuple[str, str]]:
+        """Get names of all active orders"""
+        active_orders = self.session.query(Order).filter(
             Order.status == OrderStatus.PENDING
-        ).all()]
+        ).all()
+        return [(order.id, order.display_name) for order in active_orders]
 
     def get_completed_dates(self, days_limit: int) -> Set[date]:
         """Get set of dates when orders were completed within the last N days"""
@@ -29,16 +34,18 @@ class OrderRepository:
 
         return {order.completed_at.date() for order in completed_orders if order.completed_at}
 
-    def get_completed_order_ids_by_date(self, date_value: date) -> List[str]:
-        """Get IDs of orders completed on a specific date"""
+    def get_completed_order_names_by_date(self, date_value: date) -> List[Tuple[str, str]]:
+        """Get completed orders with display names by date (id, display_name)"""
         next_day = datetime.combine(date_value, datetime.min.time()) + timedelta(days=1)
         day_start = datetime.combine(date_value, datetime.min.time())
 
-        return [order.id for order in self.session.query(Order.id).filter(
+        valid_orders = self.session.query(Order).filter(
             Order.status == OrderStatus.COMPLETED,
             Order.completed_at >= day_start,
             Order.completed_at < next_day
-        ).all()]
+        ).all()
+
+        return [(order.id, order.display_name) for order in valid_orders]
 
     def get_completed_orders_by_period(self, start_date: datetime, end_date: datetime) -> List[Order]:
         """Get completed orders between two dates"""
@@ -51,6 +58,12 @@ class OrderRepository:
         """Create a new pending order"""
         order = Order(id=str(uuid.uuid4())[:8])
         self.session.add(order)
+        self.session.commit()
+        return order
+
+    def update_order_name(self, order: Order, name: str) -> Order:
+        """Update order name"""
+        order.name = name
         self.session.commit()
         return order
 

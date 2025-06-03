@@ -50,12 +50,17 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True)
+    name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     completed_at = Column(DateTime, nullable=True)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     adjustments = relationship("ProfitAdjustment", back_populates="order", cascade="all, delete-orphan")
+
+    @property
+    def display_name(self):
+        return self.name or self.id
 
     @property
     def total_items(self):
@@ -82,7 +87,7 @@ class Order(Base):
         return sum(adj.amount for adj in self.adjustments if adj.amount < 0)
 
     def __repr__(self):
-        return f"<Order {self.id} ({self.status.value})>"
+        return f"<Order {self.display_name} ({self.status.value})>"
 
 class OrderItem(Base):
     __tablename__ = "order_items"

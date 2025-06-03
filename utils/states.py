@@ -10,6 +10,7 @@ class OrderStates(StatesGroup):
     EDIT_QUANTITY = State()
     ENTER_ADJUSTMENT_AMOUNT = State()
     ENTER_ADJUSTMENT_REASON = State()
+    ENTER_ORDER_NAME = State()
 
 class StatisticsStates(StatesGroup):
     """States for the sale statistics"""

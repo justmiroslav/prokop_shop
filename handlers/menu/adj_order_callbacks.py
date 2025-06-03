@@ -17,7 +17,7 @@ async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMConte
     order_id = data.get("order_id")
 
     order = order_service.get_order(order_id)
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
     text = "прибавить к профиту" if adj_type == "add" else "вычесть из профита"
 
     await callback.message.edit_text(order_text + f"\nВведи сумму, которую нужно {text}")
@@ -35,7 +35,7 @@ async def handle_adjustment_amount(message: Message, state: FSMContext, order_se
     prompt_chat_id, prompt_message_id = data.get("prompt_chat_id"), data.get("prompt_message_id")
     order = order_service.get_order(data.get("order_id"))
     text = "прибавить к профиту" if adj_type == "add" else "вычесть из профита"
-    order_text = f"Заказ {order.id}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
 
     try:
         amount = float(message.text.replace(",", ".").strip())
@@ -70,7 +70,7 @@ async def handle_adjustment_reason(message: Message, state: FSMContext, order_se
     order_service.add_profit_adjustment(order, amount, reason)
 
     upd_order = order_service.get_order(order_id)
-    order_text = f"Заказ {upd_order.id}\n" + format_order_msg(upd_order)
+    order_text = f"Заказ {upd_order.display_name}\n" + format_order_msg(upd_order)
     await message.answer(order_text, reply_markup=get_order_actions_keyboard())
     await state.clear()
     await state.update_data(context="orders", order_id=order_id, action="edit")
@@ -81,7 +81,7 @@ async def add_new_adjustment(callback: CallbackQuery, state: FSMContext, order_s
     data = await state.get_data()
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
-    await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери тип корректировки профита",
+    await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
         reply_markup=get_adjustment_keyboard()
     )
     await callback.answer()
@@ -98,11 +98,11 @@ async def delete_adjustment(callback: CallbackQuery, state: FSMContext, order_se
     order = order_service.get_order(order_id)
     adjustments = order_service.get_profit_adjustments(order_id)
     if adjustments:
-        await callback.message.edit_text(f"Заказ {order.id}\n\nСуществующие корректировки профита",
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nСуществующие корректировки профита",
             reply_markup=get_all_adjustments_keyboard(adjustments)
         )
     else:
-        await callback.message.edit_text(f"Заказ {order.id}\n\nВыбери тип корректировки профита",
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
             reply_markup=get_adjustment_keyboard()
         )
 
