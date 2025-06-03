@@ -154,10 +154,26 @@ async def enter_order_name(message: Message, state: FSMContext, order_service: O
         return
 
     data = await state.get_data()
-    order_id = data.get("order_id")
+    order_id, new_action, restore_order_id = data.get("order_id"), data.get("new_action"), data.get("restore_order_id")
     order = order_service.get_order(order_id)
 
+    if restore_order_id:
+        order = order_service.get_order(restore_order_id)
+        order_service.update_order_name(order, order_name)
+        message_txt = order_service.restore_order(order)
+
+        await message.answer(message_txt, reply_markup=get_orders_menu())
+        await state.clear()
+        await state.update_data(context="orders")
+        return
+
     order_service.update_order_name(order, order_name)
-    await message.answer(f"✅ Заказ {order_name} успешно завершен!", reply_markup=get_orders_menu())
-    await state.clear()
-    await state.update_data(context="orders")
+
+    if new_action:
+        await message.answer(f"Изменено имя заказа на {order_name}")
+        await message.answer(f"Заказ {order.display_name}\n" + format_order_msg(order) + "\nВыбери действие",
+            reply_markup=get_order_actions_keyboard())
+    else:
+        await message.answer(f"✅ Заказ {order_name} успешно завершен!", reply_markup=get_orders_menu())
+        await state.clear()
+        await state.update_data(context="orders")

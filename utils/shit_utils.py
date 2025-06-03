@@ -101,7 +101,7 @@ def build_date_period(period: str) -> Tuple[datetime, datetime, str]:
         start_of_week = now - timedelta(days=now.weekday())
         start_date = datetime(start_of_week.year, start_of_week.month, start_of_week.day)
         end_date = now
-        name = "эта неделя"
+        name = "эту неделю"
     elif period == "month":
         start_date = datetime(now.year, now.month, 1)
         end_date = now

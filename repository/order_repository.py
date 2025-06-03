@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional, Set, Tuple
 from datetime import datetime, timedelta, date
+from sqlalchemy import extract
 import uuid
 
 from database.models import Order, OrderItem, OrderStatus, ProfitAdjustment
@@ -46,6 +47,18 @@ class OrderRepository:
         ).all()
 
         return [(order.id, order.display_name) for order in valid_orders]
+
+    def get_months_with_completed_orders(self) -> List[Tuple[int, int]]:
+        """Get months with completed orders (year, month)"""
+        result = self.session.query(
+            extract('year', Order.completed_at).label('year'),
+            extract('month', Order.completed_at).label('month')
+        ).filter(
+            Order.status == OrderStatus.COMPLETED,
+            Order.completed_at.isnot(None)
+        ).distinct().all()
+
+        return [(int(r.year), int(r.month)) for r in result]
 
     def get_completed_orders_by_period(self, start_date: datetime, end_date: datetime) -> List[Order]:
         """Get completed orders between two dates"""

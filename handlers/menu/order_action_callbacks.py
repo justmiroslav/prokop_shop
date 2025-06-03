@@ -15,6 +15,7 @@ from utils.keyboards import (
 )
 from utils.shit_utils import format_order_msg
 from utils.config import CONFIG
+from utils.states import OrderStates
 from service.order_service import OrderService
 
 router = Router()
@@ -91,6 +92,13 @@ async def restore_order(callback: CallbackQuery, state: FSMContext, order_servic
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
+    if not order.name:
+        await callback.message.edit_text(f"Заказ {order_id}\n\nДля восстановления необходимо задать уникальное имя")
+        await state.set_state(OrderStates.ENTER_ORDER_NAME)
+        await state.update_data(restore_order_id=order_id)
+        await callback.answer()
+        return
+
     message = order_service.restore_order(order)
     await callback.message.edit_text(message)
 
@@ -157,6 +165,11 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
         await state.update_data(new_action="add_item")
         await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери категорию товара",
             reply_markup=get_category_keyboard(cancel_to="order-actions"))
+
+    elif action == "edit_name":
+        await state.update_data(new_action="edit_name")
+        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВведи новое имя заказа")
+        await state.set_state(OrderStates.ENTER_ORDER_NAME)
 
     elif action == "edit_profit":
         adjustments = order_service.get_profit_adjustments(order_id)

@@ -1,10 +1,11 @@
 from typing import List, Optional, Dict, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from database.models import Order, OrderItem, Product, ProfitAdjustment
 from repository.order_repository import OrderRepository
 from service.product_service import ProductService
 from utils.shit_utils import get_date_range, format_customer_message, build_date_period, format_dates_with_orders
+from utils.config import CONFIG
 
 class OrderService:
     def __init__(self, order_repo: OrderRepository, product_service: ProductService):
@@ -88,6 +89,22 @@ class OrderService:
 
         self.order_repo.delete_order(order)
         return f"🗑️ Заказ {order.display_name} успешно удален!"
+
+    def get_available_months(self) -> List[Tuple[int, int, str]]:
+        """Get available months with completed orders"""
+        months_data = self.order_repo.get_months_with_completed_orders()
+        return [(year, month, f"{CONFIG.STATS_MONTHS[month]} {year}") for year, month in sorted(months_data, reverse=True)]
+
+    @staticmethod
+    def get_month_period(year: int, month: int) -> Tuple[datetime, datetime, str]:
+        """Get start and end dates for a month"""
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1) - timedelta(seconds=1)
+        else:
+            end_date = datetime(year, month + 1, 1) - timedelta(seconds=1)
+
+        return start_date, end_date, f"{CONFIG.STATS_MONTHS[month]} {year}"
 
     def get_statistics(self, start_date: datetime, end_date: datetime) -> Dict:
         """Get order statistics for a period"""

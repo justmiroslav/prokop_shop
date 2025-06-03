@@ -63,7 +63,7 @@ def get_statistics_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
         keyboard=[
             [KeyboardButton(text="📅 Сегодня"), KeyboardButton(text="📅 Вчера"), KeyboardButton(text="📅 Эта неделя")],
-            [KeyboardButton(text="📅 Этот месяц"), KeyboardButton(text="🔙 Назад")]
+            [KeyboardButton(text="📅 По месяцам"), KeyboardButton(text="🔙 Назад")]
         ]
     )
 
@@ -115,6 +115,7 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➕ Добавить товар", callback_data="order_action:add_item"),
         InlineKeyboardButton(text="➖ Удалить товар", callback_data="order_action:remove_item"),
         InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
+        InlineKeyboardButton(text="✏️ Изменить имя", callback_data="order_action:edit_name"),
         InlineKeyboardButton(text="💰 Изменить профит", callback_data="order_action:edit_profit"),
         InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="order_action:finish")
     ]
@@ -151,4 +152,14 @@ def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
     buttons.append(InlineKeyboardButton(text="➕ Добавить корректировку", callback_data="add_adj"))
     keyboard = format_inline_kb(buttons, 1)
     keyboard.append([get_back_button("order_actions")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_months_keyboard(months_data: List[Tuple[int, int, str]], cancel_to: str = "") -> InlineKeyboardMarkup:
+    """Create keyboard with available months"""
+    buttons = [
+        InlineKeyboardButton(text=month_name, callback_data=f"month:{year}:{month}")
+        for year, month, month_name in months_data
+    ]
+    keyboard = format_inline_kb(buttons, 2)
+    keyboard.append([get_cancel_button(cancel_to)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
