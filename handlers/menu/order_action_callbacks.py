@@ -156,7 +156,7 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
     if action == "add_item":
         await state.update_data(new_action="add_item")
         await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери категорию товара",
-            reply_markup=get_category_keyboard())
+            reply_markup=get_category_keyboard(cancel_to="order-actions"))
 
     elif action == "edit_profit":
         adjustments = order_service.get_profit_adjustments(order_id)

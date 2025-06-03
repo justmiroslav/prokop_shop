@@ -1,5 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from datetime import date
 
 from utils.config import CONFIG
@@ -8,14 +8,14 @@ from utils.shit_utils import format_price
 def format_inline_kb(buttons: list[InlineKeyboardButton], max_in_row: int = 2) -> list[list[InlineKeyboardButton]]:
     return [buttons[i:min(i + max_in_row, len(buttons))] for i in range(0, len(buttons), max_in_row)]
 
-def get_cancel_button() -> InlineKeyboardButton:
-    return InlineKeyboardButton(text="❌ Отмена", callback_data="cancel")
+def get_cancel_button(cancel_to) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text="❌ Отмена", callback_data=f"cancel:{cancel_to}")
 
-def get_back_button(data: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text="🔙 Назад", callback_data=data)
+def get_back_button(back_to: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text="🔙 Назад", callback_data=f"back:{back_to}")
 
-def get_additional_row(data: str) -> list[InlineKeyboardButton]:
-    return [get_back_button(data), get_cancel_button()]
+def get_navigation_row(back_to: str, cancel_to: str = "") -> list[InlineKeyboardButton]:
+    return [get_back_button(back_to), get_cancel_button(cancel_to)]
 
 def get_main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
@@ -40,23 +40,23 @@ def get_products_menu() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_order_names_keyboard(order_data: List[Tuple[str, str]], prefix: str) -> InlineKeyboardMarkup:
+def get_order_names_keyboard(order_data: List[Tuple[str, str]], prefix: str, cancel_to: str = "") -> InlineKeyboardMarkup:
     """Create keyboard with order display names"""
     buttons = [
         InlineKeyboardButton(text=display_name, callback_data=f"{prefix}:{order_id}")
         for order_id, display_name in order_data
     ]
     keyboard = format_inline_kb(buttons, 3)
-    keyboard.append([get_cancel_button()])
+    keyboard.append([get_cancel_button(cancel_to)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_date_keyboard(date_options: List[Tuple[date, str]], prefix: str) -> InlineKeyboardMarkup:
+def get_date_keyboard(date_options: List[Tuple[date, str]], prefix: str, cancel_to: str = "") -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=date_text, callback_data=f"{prefix}:{d.isoformat()}")
         for d, date_text in date_options
     ]
     keyboard = format_inline_kb(buttons, 2)
-    keyboard.append([get_cancel_button()])
+    keyboard.append([get_cancel_button(cancel_to)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_statistics_keyboard() -> ReplyKeyboardMarkup:
@@ -67,38 +67,39 @@ def get_statistics_keyboard() -> ReplyKeyboardMarkup:
         ]
     )
 
-def get_category_keyboard() -> InlineKeyboardMarkup:
+def get_category_keyboard(cancel_to: str = "") -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text=category, callback_data=f"category:{category}")
+        InlineKeyboardButton(text=category, callback_data=f"category_{cancel_to}:{category}")
         for category in CONFIG.PRODUCT_CATEGORIES.keys()
     ]
-    return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons + [get_cancel_button()]))
+    return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons + [get_cancel_button(cancel_to)]))
 
-def get_product_keyboard(product_names: List[str]) -> InlineKeyboardMarkup:
+def get_product_keyboard(product_names: List[str], cancel_to: str = "") -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text=product_name, callback_data=f"product:{index}")
+        InlineKeyboardButton(text=product_name, callback_data=f"product_{cancel_to}:{index}")
         for index, product_name in enumerate(product_names)
     ]
     keyboard = format_inline_kb(buttons)
-    keyboard.append(get_additional_row("back_to_categories"))
+    keyboard.append(get_navigation_row("category", cancel_to))
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_attribute_keyboard(attributes: List[str]) -> InlineKeyboardMarkup:
+def get_attribute_keyboard(attributes: List[str], cancel_to: str = "") -> InlineKeyboardMarkup:
     buttons = [
-        InlineKeyboardButton(text=attribute, callback_data=f"attribute:{index}")
+        InlineKeyboardButton(text=attribute, callback_data=f"attribute_{cancel_to}:{index}")
         for index, attribute in enumerate(attributes)
     ]
     keyboard = format_inline_kb(buttons, 3)
-    keyboard.append(get_additional_row("back_to_products"))
+    keyboard.append(get_navigation_row("product", cancel_to))
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_quantity_keyboard(max_qty: int, callback_str: str) -> InlineKeyboardMarkup:
+def get_quantity_keyboard(max_qty: int, callback_str: str, cancel_to: str = "", exclude_qty: Optional[int] = None) -> InlineKeyboardMarkup:
+    quantities = [i for i in range(1, min(max_qty + 1, 11)) if i != exclude_qty]
     buttons = [
-        InlineKeyboardButton(text=str(i), callback_data=f"quantity:{i}")
-        for i in range(1, min(max_qty + 1, 10))
+        InlineKeyboardButton(text=str(i), callback_data=f"quantity_{callback_str}:{i}")
+        for i in quantities
     ]
     keyboard = format_inline_kb(buttons, 3)
-    keyboard.append(get_additional_row(callback_str))
+    keyboard.append(get_navigation_row(callback_str, cancel_to))
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_order_continue_keyboard() -> InlineKeyboardMarkup:
@@ -122,13 +123,13 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
 def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardMarkup:
     buttons = []
     for item in order_items:
-        prefix, suffix = ("❌ ", "") if action_prefix.startswith("remove") else ("", f" - x{item.quantity}")
-        text = f"{prefix}{item.product.full_name}{suffix}"
+        prefix = "❌ " if action_prefix.startswith("remove") else ""
+        text = f"{prefix}{item.product.full_name}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
     keyboard = format_inline_kb(buttons, 1)
-    back_navigation = "back_to_order_continue" if action_prefix == "remove_from_new" else "back_to_order_actions"
-    keyboard.append([get_back_button(back_navigation)])
+    navigation = "order_continue" if action_prefix == "remove_from_new" else "order_actions"
+    keyboard.append([get_back_button(navigation)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_adjustment_keyboard() -> InlineKeyboardMarkup:
@@ -137,7 +138,7 @@ def get_adjustment_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➖ Вычесть из профита", callback_data="profit_adj:subtract")
     ]
     keyboard = format_inline_kb(buttons, 1)
-    keyboard.append(get_additional_row("back_to_order_actions"))
+    keyboard.append([get_back_button("order_actions")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
@@ -149,5 +150,5 @@ def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
 
     buttons.append(InlineKeyboardButton(text="➕ Добавить корректировку", callback_data="add_adj"))
     keyboard = format_inline_kb(buttons, 1)
-    keyboard.append([get_back_button("back_to_order_actions")])
+    keyboard.append([get_back_button("order_actions")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

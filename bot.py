@@ -8,7 +8,8 @@ from database.session import init_db, Session
 from repository.sheets import SheetManager
 from middleware import DependencyMiddleware
 from handlers import start, statistics, echo
-from handlers.menu import actions, edit_order_callbacks, navigation, order_action_callbacks, select_product_callbacks, adj_order_callbacks
+from handlers.menu import actions, edit_order_callbacks, order_action_callbacks, select_product_callbacks, adj_order_callbacks
+from handlers.navigation import navigation
 
 async def main():
     init_db()

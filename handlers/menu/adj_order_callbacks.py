@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 
 from utils.keyboards import get_adjustment_keyboard, get_all_adjustments_keyboard, get_order_actions_keyboard
 from utils.states import OrderStates
-from utils.shit_utils import format_order_msg, format_price
+from utils.shit_utils import format_order_msg
 from service.order_service import OrderService
 
 router = Router()
@@ -44,15 +44,9 @@ async def handle_adjustment_amount(message: Message, state: FSMContext, order_se
                 text=f"{order_text}\nМожно {text} только положительное число\nВведи корректное число")
             return
 
-        if adj_type == "subtract" and amount > order.profit:
-            await message.bot.edit_message_text(chat_id=prompt_chat_id, message_id=prompt_message_id,
-                text=f"{order_text}\nНевозможно {text} {format_price(abs(amount))} грн\nВведи корректное число")
-            return
-
         amount = amount if adj_type == "add" else -amount
         await state.update_data(adj_amount=amount)
         await state.set_state(OrderStates.ENTER_ADJUSTMENT_REASON)
-
         await message.answer("Введи причину корректировки")
     except (ValueError, TypeError):
         await message.bot.edit_message_text(chat_id=prompt_chat_id, message_id=prompt_message_id,
