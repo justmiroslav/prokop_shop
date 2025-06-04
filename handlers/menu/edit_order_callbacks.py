@@ -12,13 +12,12 @@ router = Router()
 @router.callback_query(F.data.startswith("remove_item:"))
 @router.callback_query(F.data.startswith("remove_from_new:"))
 async def remove_item(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
-    """Remove item from order"""
     action, item_id = callback.data.split(":")
     data = await state.get_data()
     order_id = data.get("order_id")
 
     item = order_service.get_order_item(int(item_id))
-    await order_service.remove_order_item(item)
+    order_service.remove_order_item(item)
 
     order = order_service.get_order(order_id)
     if not order.items:
@@ -33,7 +32,6 @@ async def remove_item(callback: CallbackQuery, state: FSMContext, order_service:
 
 @router.callback_query(F.data.startswith("edit_item:"))
 async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_repo: OrderRepository):
-    """Edit item quantity"""
     item_id = int(callback.data.split(":")[1])
     item = order_repo.get_order_item(item_id)
 
@@ -47,7 +45,6 @@ async def edit_item_quantity(callback: CallbackQuery, state: FSMContext, order_r
 
 @router.callback_query(F.data.startswith("quantity_order_items:"))
 async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
-    """Update item quantity"""
     new_quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
 
@@ -56,7 +53,7 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
     await state.update_data(context="orders", order_id=order_id, action="edit")
 
     item = order_service.get_order_item(item_id)
-    await order_service.update_order_item_quantity(item, new_quantity)
+    order_service.update_order_item_quantity(item, new_quantity)
 
     order = order_service.get_order(order_id)
 

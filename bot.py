@@ -23,7 +23,7 @@ async def main():
     session = Session()
     sheet_manager = SheetManager(session)
 
-    asyncio.create_task(sheet_manager.start_periodic_refresh())
+    await sheet_manager.start_background_tasks()
     dp.update.middleware(DependencyMiddleware(sheet_manager))
 
     dp.include_router(start.router)
@@ -40,7 +40,7 @@ async def main():
         logging.info("Starting bot")
         await dp.start_polling(bot)
     finally:
-        await sheet_manager.stop_periodic_refresh()
+        await sheet_manager.stop_background_tasks()
         session.close()
         await bot.session.close()
 

@@ -24,7 +24,6 @@ router = Router()
 
 @router.callback_query(F.data.startswith("category_"))
 async def select_category(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
-    """Handle category selection"""
     call, category = callback.data.split(":")
 
     data = await state.get_data()
@@ -45,7 +44,6 @@ async def select_category(callback: CallbackQuery, state: FSMContext, product_se
 
 @router.callback_query(F.data.startswith("product_"))
 async def select_product(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
-    """Handle product selection"""
     call, index_str = callback.data.split(":")
     index = int(index_str)
 
@@ -63,7 +61,6 @@ async def select_product(callback: CallbackQuery, state: FSMContext, product_ser
 
 @router.callback_query(F.data.startswith("attribute_"))
 async def select_attribute(callback: CallbackQuery, state: FSMContext, product_service: ProductService):
-    """Handle attribute selection"""
     call, index_str = callback.data.split(":")
     index = int(index_str)
 
@@ -83,7 +80,6 @@ async def select_attribute(callback: CallbackQuery, state: FSMContext, product_s
 
 @router.callback_query(F.data.startswith("quantity_attribute:"))
 async def select_quantity(callback: CallbackQuery, state: FSMContext, order_service: OrderService, product_service: ProductService):
-    """Handle quantity selection"""
     quantity = int(callback.data.split(":")[1])
     data = await state.get_data()
     category, action, product_name, attribute, new_action = data.get("category"), data.get("action"), data.get("product_name"), data.get("attribute"), data.get("new_action")
@@ -92,10 +88,10 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
     if action in ["add", "remove"]:
         if action == "add":
-            await product_service.add_quantity(product, quantity)
+            product_service.add_quantity(product, quantity)
             action_text = "добавлено"
         else:
-            await product_service.remove_quantity(product, quantity)
+            product_service.remove_quantity(product, quantity)
             action_text = "убрано"
 
         await callback.message.edit_text(f"✅ Успешно {action_text} {quantity} шт. товара {product.full_name}\n\n"
@@ -108,7 +104,7 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
-    await order_service.add_product_to_order(order, product, quantity)
+    order_service.add_product_to_order(order, product, quantity)
 
     order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
     keyboard = get_order_actions_keyboard() if new_action else get_order_continue_keyboard()
@@ -120,7 +116,6 @@ async def select_quantity(callback: CallbackQuery, state: FSMContext, order_serv
 
 @router.callback_query(F.data.startswith("order_continue:"))
 async def handle_order_continue(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
-    """Handle order continuation actions"""
     action = callback.data.split(":")[1]
     data = await state.get_data()
     order_id = data.get("order_id")
@@ -141,7 +136,6 @@ async def handle_order_continue(callback: CallbackQuery, state: FSMContext, orde
 
 @router.message(OrderStates.ENTER_ORDER_NAME)
 async def enter_order_name(message: Message, state: FSMContext, order_service: OrderService):
-    """Handle order name input"""
     order_name = message.text.strip()
 
     if len(order_name) > 30:

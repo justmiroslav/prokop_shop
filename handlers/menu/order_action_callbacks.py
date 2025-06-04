@@ -113,7 +113,7 @@ async def delete_order(callback: CallbackQuery, state: FSMContext, order_service
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    message = await order_service.delete_order(order)
+    message = order_service.delete_order(order)
     order_data = order_service.get_active_order_names()
     await state.clear()
 

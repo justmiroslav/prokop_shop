@@ -9,33 +9,25 @@ class ProductService:
         self.sheet_manager = sheet_manager
 
     def get_categories(self) -> List[str]:
-        """Get all available product categories"""
         return self.product_repo.get_unique_categories()
 
     def get_product_names(self, category: str, action: str = None) -> List[str]:
-        """Get product names in a category"""
         return self.product_repo.get_unique_product_names(category,  action == "add")
 
     def get_attributes(self, category: str, product_name: str, action: str) -> List[str]:
-        """Get all attributes for a product that have quantity > 0"""
         return self.product_repo.get_attributes_by_product(category, product_name, action == "add")
 
     def get_product(self, category: str, product_name: str, attribute: str) -> Optional[Product]:
-        """Find a product by category, name and attribute"""
         return self.product_repo.get_by_name_attribute(category, product_name, attribute)
 
     def get_product_by_id(self, product_id: int) -> Optional[Product]:
-        """Get product by ID"""
         return self.product_repo.get_by_id(product_id)
 
-    async def add_quantity(self, product: Product, amount: int) -> bool:
-        """Add quantity to a product"""
-        return await self.sheet_manager.update_product_quantity(product, product.quantity + amount)
+    def add_quantity(self, product: Product, amount: int) -> bool:
+        return self.sheet_manager.queue_quantity_update(product, product.quantity + amount)
 
-    async def remove_quantity(self, product: Product, amount: int) -> bool:
-        """Remove quantity from a product"""
-        return await self.sheet_manager.update_product_quantity(product, product.quantity - amount)
+    def remove_quantity(self, product: Product, amount: int) -> bool:
+        return self.sheet_manager.queue_quantity_update(product, product.quantity - amount)
 
-    async def update_quantity(self, product: Product, new_quantity: int) -> bool:
-        """Update product quantity"""
-        return await self.sheet_manager.update_product_quantity(product, new_quantity)
+    def update_quantity(self, product: Product, new_quantity: int) -> bool:
+        return self.sheet_manager.queue_quantity_update(product, new_quantity)

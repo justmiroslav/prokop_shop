@@ -1,5 +1,4 @@
 from aiogram import Router, F
-from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from io import StringIO
 
@@ -12,13 +11,11 @@ from service.order_service import OrderService
 router = Router()
 
 @router.message(StatisticsStates.SELECT_PERIOD)
-async def handle_period_selection(message: Message, state: FSMContext, order_service: OrderService):
+async def handle_period_selection(message: Message, order_service: OrderService):
     """Handle period selection"""
     period = CONFIG.PERIOD_MAP.get(message.text)
 
     if period == "month":
-        await state.clear()
-        await state.update_data(context="statistics")
         months_data = order_service.get_available_months()
         await message.answer("Выберите месяц", reply_markup=get_months_keyboard(months_data))
         return
