@@ -28,7 +28,7 @@ def get_orders_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True,
         keyboard=[
             [KeyboardButton(text="➕ Новый заказ"), KeyboardButton(text="✅ Завершить заказ"), KeyboardButton(text="🗑️ Удалить заказ")],
-            [KeyboardButton(text="📝 Редактировать заказ"), KeyboardButton(text="🔄 Восстановить заказ"), KeyboardButton(text="🔍 Активные заказы")],
+            [KeyboardButton(text="📝 Активные заказы"), KeyboardButton(text="🔄 Восстановить заказ")],
             [KeyboardButton(text="💬 Сообщение клиенту"), KeyboardButton(text="🔙 Назад")]
         ]
     )
@@ -117,7 +117,7 @@ def get_order_actions_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📝 Изменить количество", callback_data="order_action:edit_quantity"),
         InlineKeyboardButton(text="✏️ Изменить имя", callback_data="order_action:edit_name"),
         InlineKeyboardButton(text="💰 Изменить профит", callback_data="order_action:edit_profit"),
-        InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="order_action:finish")
+        InlineKeyboardButton(text="🔙 К списку заказов", callback_data="order_action:back_to_list")
     ]
     return InlineKeyboardMarkup(inline_keyboard=format_inline_kb(buttons, 2))
 

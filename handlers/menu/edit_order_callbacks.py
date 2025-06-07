@@ -50,7 +50,6 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
 
     item_id, order_id = data.get("item_id"), data.get("order_id")
     await state.clear()
-    await state.update_data(context="orders", order_id=order_id, action="edit")
 
     item = order_service.get_order_item(item_id)
     order_service.update_order_item_quantity(item, new_quantity)
@@ -58,5 +57,6 @@ async def update_item_quantity(callback: CallbackQuery, state: FSMContext, order
     order = order_service.get_order(order_id)
 
     order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
-    await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
+    response = await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
+    await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
     await callback.answer()

@@ -34,8 +34,8 @@ async def handle_cancel(callback: CallbackQuery, state: FSMContext, order_servic
     if destination.startswith("order-act") and order_id:
         order = order_service.get_order(order_id)
         order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
-        await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
-        await state.update_data(context="orders", order_id=order_id, action="edit")
+        response = await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
+        await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
     else:
         await callback.message.edit_text("Операция отменена")
         if context in ["orders", "products"]:
@@ -69,7 +69,7 @@ async def handle_back(callback: CallbackQuery, state: FSMContext, order_service:
         await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для изменения количества",
             reply_markup=get_order_items_keyboard(order.items, "edit_item"))
 
-    cancel_to = "order-actions" if action == "edit" else ""
+    cancel_to = "order-actions" if action in ["view_edit", "edit"] else ""
 
     if destination == "category":
         prefix = f"Заказ {order.display_name}\n\n" if order.name else "Новый заказ\n\n"

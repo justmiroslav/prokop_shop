@@ -20,23 +20,15 @@ from service.order_service import OrderService
 
 router = Router()
 
-@router.callback_query(F.data.startswith("view_order:"))
-async def view_order(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
-    """Show order details"""
+@router.callback_query(F.data.startswith("view_edit_order:"))
+async def view_edit_order(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
+    """Show order details with edit options"""
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
-    await callback.message.edit_text(order_text)
-    await state.clear()
-
-    action, message_text, callback_prefix = CONFIG.ACTIONS_MAP["🔍 Активные заказы"]
-    order_data = order_service.get_active_order_names()
-    response = await callback.message.answer(message_text,
-        reply_markup=get_order_names_keyboard(order_data, callback_prefix)
-    )
-
-    await state.update_data(context="orders", action=action, inline_message_id=response.message_id)
+    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order) + "\nВыбери действие"
+    await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
+    await state.update_data(order_id=order.id, action="view_edit")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("complete_order:"))
@@ -142,17 +134,6 @@ async def generate_customer_message(callback: CallbackQuery, state: FSMContext, 
     await state.update_data(context="orders")
     await callback.answer()
 
-@router.callback_query(F.data.startswith("edit_order:"))
-async def edit_order(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
-    """Edit an order"""
-    order_id = callback.data.split(":")[1]
-    order = order_service.get_order(order_id)
-
-    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order) + "\nВыбери действие"
-    await callback.message.edit_text(order_text, reply_markup=get_order_actions_keyboard())
-    await state.update_data(order_id=order.id)
-    await callback.answer()
-
 @router.callback_query(F.data.startswith("order_action:"))
 async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Handle order edit actions"""
@@ -160,6 +141,17 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
     data = await state.get_data()
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
+
+    if action == "back_to_list":
+        order_data = order_service.get_active_order_names()
+        action_data, message_text, callback_prefix = CONFIG.ACTIONS_MAP["📝 Активные заказы"]
+        response = await callback.message.edit_text(message_text,
+            reply_markup=get_order_names_keyboard(order_data, callback_prefix)
+        )
+        await state.clear()
+        await state.update_data(context="orders", action=action_data, inline_message_id=response.message_id)
+        await callback.answer()
+        return
 
     if action == "add_item":
         await state.update_data(new_action="add_item")
@@ -195,11 +187,5 @@ async def handle_order_action(callback: CallbackQuery, state: FSMContext, order_
     elif action == "edit_quantity":
         await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для изменения количества",
             reply_markup=get_order_items_keyboard(order.items, "edit_item"))
-
-    else:
-        await callback.message.edit_text(f"✅ Редактирование заказа {order.display_name} завершено")
-        await callback.message.answer("Выбери действие", reply_markup=get_orders_menu())
-        await state.clear()
-        await state.update_data(context="orders")
 
     await callback.answer()

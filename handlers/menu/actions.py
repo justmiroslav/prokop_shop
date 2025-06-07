@@ -26,7 +26,7 @@ async def new_order(message: Message, state: FSMContext, order_service: OrderSer
 
     await state.update_data(order_id=order.id, action="new_order", inline_message_id=response.message_id)
 
-@router.message(F.text.in_({"🔍 Активные заказы", "✅ Завершить заказ", "🗑️ Удалить заказ", "📝 Редактировать заказ", "💬 Сообщение клиенту"}))
+@router.message(F.text.in_({"✅ Завершить заказ", "🗑️ Удалить заказ", "💬 Сообщение клиенту", "📝 Активные заказы"}))
 async def handle_order_commands(message: Message, state: FSMContext, order_service: OrderService):
     """Handle order-related commands"""
     order_data = order_service.get_active_order_names()

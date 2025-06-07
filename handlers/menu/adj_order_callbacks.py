@@ -65,9 +65,9 @@ async def handle_adjustment_reason(message: Message, state: FSMContext, order_se
 
     upd_order = order_service.get_order(order_id)
     order_text = f"Заказ {upd_order.display_name}\n" + format_order_msg(upd_order)
-    await message.answer(order_text, reply_markup=get_order_actions_keyboard())
+    response = await message.answer(order_text, reply_markup=get_order_actions_keyboard())
     await state.clear()
-    await state.update_data(context="orders", order_id=order_id, action="edit")
+    await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
 
 @router.callback_query(F.data == "add_adj")
 async def add_new_adjustment(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
