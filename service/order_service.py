@@ -107,8 +107,8 @@ class OrderService:
             "net_profit": profit
         }
 
-    def add_profit_adjustment(self, order: Order, amount: float, reason: str) -> None:
-        self.order_repo.add_profit_adjustment(order, amount, reason)
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str, affects_total: bool = True) -> None:
+        self.order_repo.add_profit_adjustment(order, amount, reason, affects_total)
 
     def get_profit_adjustments(self, order_id: str) -> List[ProfitAdjustment]:
         return self.order_repo.get_profit_adjustments(order_id)

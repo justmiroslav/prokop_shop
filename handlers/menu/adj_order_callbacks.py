@@ -9,6 +9,19 @@ from service.order_service import OrderService
 
 router = Router()
 
+async def finish_adjusting_order(message: Message, state: FSMContext, order_service: OrderService):
+    data = await state.get_data()
+    order_id, amount, adj_reason, affects_total = data.get("order_id"), data.get("adj_amount"), data.get("adj_reason"), data.get("affects_total")
+
+    order = order_service.get_order(order_id)
+
+    order_service.add_profit_adjustment(order, amount, adj_reason, affects_total)
+    upd_order = order_service.get_order(order_id)
+    order_text = f"Заказ {upd_order.display_name}\n" + format_order_msg(upd_order)
+    response = await message.answer(order_text, reply_markup=get_order_actions_keyboard())
+    await state.clear()
+    await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
+
 @router.callback_query(F.data.startswith("profit_adj:"))
 async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMContext, order_service: OrderService):
     """Handle profit adjustment type selection"""
@@ -18,11 +31,19 @@ async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMConte
 
     order = order_service.get_order(order_id)
     order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
-    text = "прибавить к профиту" if adj_type == "add" else "вычесть из профита"
 
-    await callback.message.edit_text(order_text + f"\nВведи сумму, которую нужно {text}")
-    await state.update_data(adj_type=adj_type, prompt_chat_id=callback.message.chat.id,
-        prompt_message_id=callback.message.message_id
+    if adj_type == "discount":
+        text, reason, affects_total = " скидки", "скидка", True
+    elif adj_type == "delivery":
+        text, reason, affects_total = " доставки", "доставка", False
+    elif adj_type == "add":
+        text, reason, affects_total = ", которую нужно прибавить к профиту", "", True
+    else:
+        text, reason, affects_total = ", которую нужно вычесть из профита", "", True
+
+    await callback.message.edit_text(order_text + f"\nВведи сумму{text}")
+    await state.update_data(adj_type=adj_type, adj_reason=reason, affects_total=affects_total,
+        prompt_chat_id=callback.message.chat.id, prompt_message_id=callback.message.message_id
     )
     await state.set_state(OrderStates.ENTER_ADJUSTMENT_AMOUNT)
     await callback.answer()
@@ -31,23 +52,29 @@ async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMConte
 async def handle_adjustment_amount(message: Message, state: FSMContext, order_service: OrderService):
     """Handle entering adjustment amount"""
     data = await state.get_data()
-    order_id, adj_type = data.get("order_id"), data.get("adj_type")
+    order_id, adj_type, adj_reason = data.get("order_id"), data.get("adj_type"), data.get("adj_reason")
     prompt_chat_id, prompt_message_id = data.get("prompt_chat_id"), data.get("prompt_message_id")
-    order = order_service.get_order(data.get("order_id"))
-    text = "прибавить к профиту" if adj_type == "add" else "вычесть из профита"
+
+    order = order_service.get_order(order_id)
     order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
 
     try:
         amount = float(message.text.replace(",", ".").strip())
         if amount <= 0:
             await message.bot.edit_message_text(chat_id=prompt_chat_id, message_id=prompt_message_id,
-                text=f"{order_text}\nМожно {text} только положительное число\nВведи корректное число")
+                text=f"{order_text}\nМожно вводить только положительное число\nВведи корректное число")
             return
 
-        amount = amount if adj_type == "add" else -amount
+        if adj_type in ["subtract", "discount", "delivery"]:
+            amount = -amount
+
         await state.update_data(adj_amount=amount)
-        await state.set_state(OrderStates.ENTER_ADJUSTMENT_REASON)
-        await message.answer("Введи причину корректировки")
+
+        if adj_reason:
+            await finish_adjusting_order(message, state, order_service)
+        else:
+            await state.set_state(OrderStates.ENTER_ADJUSTMENT_REASON)
+            await message.answer("Введи причину корректировки")
     except (ValueError, TypeError):
         await message.bot.edit_message_text(chat_id=prompt_chat_id, message_id=prompt_message_id,
             text=f"{order_text}\nВведи число а не строку"
@@ -57,17 +84,8 @@ async def handle_adjustment_amount(message: Message, state: FSMContext, order_se
 async def handle_adjustment_reason(message: Message, state: FSMContext, order_service: OrderService):
     """Handle entering adjustment reason"""
     reason = message.text.strip()
-    data = await state.get_data()
-    order_id, amount = data.get("order_id"), data.get("adj_amount")
-    order = order_service.get_order(order_id)
-
-    order_service.add_profit_adjustment(order, amount, reason)
-
-    upd_order = order_service.get_order(order_id)
-    order_text = f"Заказ {upd_order.display_name}\n" + format_order_msg(upd_order)
-    response = await message.answer(order_text, reply_markup=get_order_actions_keyboard())
-    await state.clear()
-    await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
+    await state.update_data(adj_reason=reason)
+    await finish_adjusting_order(message, state, order_service)
 
 @router.callback_query(F.data == "add_adj")
 async def add_new_adjustment(callback: CallbackQuery, state: FSMContext, order_service: OrderService):

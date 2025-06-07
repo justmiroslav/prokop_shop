@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -38,6 +38,7 @@ class ProfitAdjustment(Base):
     order_id = Column(String, ForeignKey("orders.id"), nullable=False)
     amount = Column(Float, nullable=False)
     reason = Column(String, nullable=False)
+    affects_total = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
 
     order = relationship("Order", back_populates="adjustments")
@@ -68,6 +69,10 @@ class Order(Base):
 
     @property
     def total_adjustments(self):
+        return sum(adj.amount for adj in self.adjustments if adj.affects_total)
+
+    @property
+    def total_profit_adjustments(self):
         return sum(adj.amount for adj in self.adjustments)
 
     @property
@@ -80,11 +85,11 @@ class Order(Base):
 
     @property
     def profit(self):
-        return self.total - self.total_cost
+        return self.total_items - self.total_cost + self.total_profit_adjustments
 
     @property
     def discount(self):
-        return sum(adj.amount for adj in self.adjustments if adj.amount < 0)
+        return sum(adj.amount for adj in self.adjustments if adj.affects_total and adj.amount < 0)
 
     def __repr__(self):
         return f"<Order {self.display_name} ({self.status.value})>"
