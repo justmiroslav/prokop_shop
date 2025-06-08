@@ -35,14 +35,12 @@ class AuthManager:
 
     def authorize_user(self, user_id: int):
         self.authorized_users.add(user_id)
-        if user_id in self.failed_attempts:
-            del self.failed_attempts[user_id]
+        self.failed_attempts.pop(user_id, None)
         self.save_data(self.authorized_users, self.authorized_file)
 
     def ban_user(self, user_id: int):
         self.banned_users.add(user_id)
-        if user_id in self.failed_attempts:
-            del self.failed_attempts[user_id]
+        self.failed_attempts.pop(user_id, None)
         self.save_data(self.banned_users, self.banned_file)
 
     def add_failed_attempt(self, user_id: int) -> int:

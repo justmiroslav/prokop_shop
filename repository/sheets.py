@@ -2,6 +2,7 @@ import gspread, logging, asyncio
 from google.oauth2.service_account import Credentials
 from sqlalchemy.orm import Session
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.config import CONFIG
 from database.models import Product
@@ -20,13 +21,12 @@ class SheetManager:
         self.product_repo = ProductRepository(db_session)
         self.client = self.get_client()
         self.sheet = self.client.open_by_key(CONFIG.SHEET_ID)
-        self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if
-                               sheet.title != CONFIG.EXCLUDED_SHEET}
+        self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if sheet.title != CONFIG.EXCLUDED_SHEET}
 
         self.update_queue = asyncio.Queue()
-        self.lock = asyncio.Semaphore(1)
-        self.periodic_refresh_task = None
-        self.queue_worker_task = None
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.sync_task = None
+        self.queue_task = None
 
         for sheet_name, worksheet in self.product_sheets.items():
             header = worksheet.row_values(1)
@@ -38,17 +38,18 @@ class SheetManager:
         creds = Credentials.from_service_account_file(CONFIG.CREDENTIALS_FILE, scopes=CONFIG.SCOPES)
         return gspread.authorize(creds)
 
-    def sync_products(self):
-        """Synchronize products from Google Sheets to the database"""
+    async def sync_products(self):
+        """Async product sync with sequential sheet processing for DB safety"""
         try:
+            loop = asyncio.get_event_loop()
             for sheet_name, worksheet in self.product_sheets.items():
-                self._sync_sheet_products(sheet_name, worksheet)
-            logging.info("Products synchronized from Google Sheets")
+                await loop.run_in_executor(self.executor, self._sync_sheet_products, sheet_name, worksheet)
+            logging.info("Products synchronized")
         except Exception as e:
-            logging.error(f"Error syncing products: {e}")
+            logging.error(f"Error in sync_products: {e}")
 
     def _sync_sheet_products(self, sheet_name: str, worksheet: gspread.Worksheet):
-        """Sync products from a specific worksheet"""
+        """Sync products from specific worksheet"""
         try:
             data = worksheet.get_all_values()
             if len(data) <= 1:
@@ -59,116 +60,99 @@ class SheetManager:
                     continue
 
                 try:
-                    name = row[CONFIG.COL_PRODUCT]
-                    attribute = row[CONFIG.COL_ATTRIBUTE]
-                    quantity = int(row[CONFIG.COL_QUANTITY])
-                    price = float(row[CONFIG.COL_PRICE])
-                    cost = float(row[CONFIG.COL_COST])
+                    name, attribute = row[CONFIG.COL_PRODUCT], row[CONFIG.COL_ATTRIBUTE]
+                    quantity, price, cost = int(row[CONFIG.COL_QUANTITY]), float(row[CONFIG.COL_PRICE]), float(row[CONFIG.COL_COST])
 
                     product = self.product_repo.get_by_name_attribute(sheet_name, name, attribute)
 
                     if product:
                         if product.quantity != quantity or product.price != price or product.cost != cost:
-                            product.name = name
-                            product.attribute = attribute
-                            product.quantity = quantity
-                            product.price = price
-                            product.cost = cost
+                            product.name, product.attribute, product.quantity = name, attribute, quantity
+                            product.price, product.cost = price, cost
                             self.product_repo.update(product)
                     else:
-                        product = Product(sheet_name=sheet_name, sheet_row=i,
-                                          name=name, attribute=attribute, quantity=quantity,
-                                          price=price, cost=cost
-                                          )
+                        product = Product(sheet_name=sheet_name, sheet_row=i, name=name,
+                                          attribute=attribute, quantity=quantity, price=price, cost=cost)
                         self.product_repo.create(product)
 
                 except (ValueError, IndexError) as e:
-                    logging.warning(f"Error processing row {i} in sheet {sheet_name}: {e}")
+                    logging.warning(f"Row {i} in {sheet_name}: {e}")
 
         except Exception as e:
-            logging.error(f"Error syncing sheet {sheet_name}: {e}")
+            logging.error(f"Error syncing {sheet_name}: {e}")
 
     def queue_quantity_update(self, product: Product, new_quantity: int) -> bool:
         try:
             product.quantity = new_quantity
             self.product_repo.update(product)
 
-            update = QuantityUpdate(
-                product_id=product.id,
-                new_quantity=new_quantity,
-                sheet_name=product.sheet_name,
-                sheet_row=product.sheet_row
-            )
+            update = QuantityUpdate(product.id, new_quantity, product.sheet_name, product.sheet_row)
 
             try:
                 self.update_queue.put_nowait(update)
                 return True
             except asyncio.QueueFull:
-                logging.warning("Update queue is full, skipping sheet update")
+                logging.warning("Update queue full, skipping sheet update")
                 return True
 
         except Exception as e:
-            logging.error(f"Error queuing product update: {e}")
+            logging.error(f"Error queuing update: {e}")
             return False
 
     async def _process_update_queue(self):
+        """Process sheet updates from queue"""
         while True:
             try:
                 update = await self.update_queue.get()
-                async with self.lock:
-                    await self._process_single_update(update)
+                await self._process_single_update(update)
                 self.update_queue.task_done()
             except Exception as e:
-                logging.error(f"Error processing update queue: {e}")
+                logging.error(f"Queue processing error: {e}")
                 await asyncio.sleep(1)
 
     async def _process_single_update(self, update: QuantityUpdate):
+        """Process single sheet update"""
         try:
             if update.sheet_name not in self.product_sheets:
                 return
 
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
-                None,
+                self.executor,
                 self._update_sheet_quantity,
-                update.sheet_name,
-                update.sheet_row,
-                update.new_quantity
+                update.sheet_name, update.sheet_row, update.new_quantity
             )
         except Exception as e:
-            logging.error(f"Error updating sheet for product {update.product_id}: {e}")
+            logging.error(f"Sheet update error for product {update.product_id}: {e}")
 
     def _update_sheet_quantity(self, sheet_name: str, row: int, quantity: int):
+        """Update quantity in sheet"""
         worksheet = self.product_sheets[sheet_name]
         worksheet.update_cell(row, CONFIG.COL_QUANTITY + 1, quantity)
 
     async def start_background_tasks(self, refresh_interval=15):
-        self.queue_worker_task = asyncio.create_task(self._process_update_queue())
-        self.periodic_refresh_task = asyncio.create_task(self._periodic_refresh(refresh_interval))
+        """Start background tasks with initial delay"""
+        self.queue_task = asyncio.create_task(self._process_update_queue())
+        self.sync_task = asyncio.create_task(self._periodic_sync(refresh_interval))
 
     async def stop_background_tasks(self):
-        if self.queue_worker_task:
-            self.queue_worker_task.cancel()
-            try:
-                await self.queue_worker_task
-            except asyncio.CancelledError:
-                pass
-
-        if self.periodic_refresh_task:
-            self.periodic_refresh_task.cancel()
-            try:
-                await self.periodic_refresh_task
-            except asyncio.CancelledError:
-                pass
+        """Stop background tasks and cleanup"""
+        for task in [self.queue_task, self.sync_task]:
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
         await self.update_queue.join()
+        self.executor.shutdown(wait=True)
 
-    async def _periodic_refresh(self, interval_seconds):
+    async def _periodic_sync(self, interval_seconds):
+        """Periodic sync with initial delay"""
         while True:
             await asyncio.sleep(interval_seconds)
             try:
-                async with self.lock:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, self.sync_products)
+                await self.sync_products()
             except Exception as e:
-                logging.error(f"Error during periodic refresh: {e}")
+                logging.error(f"Periodic sync error: {e}")

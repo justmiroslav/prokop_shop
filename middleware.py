@@ -20,19 +20,13 @@ class DependencyMiddleware(BaseMiddleware):
         session = Session()
 
         try:
-            product_repo = ProductRepository(session)
-            order_repo = OrderRepository(session)
-
+            product_repo, order_repo = ProductRepository(session), OrderRepository(session)
             product_service = ProductService(product_repo, self.sheet_manager)
             order_service = OrderService(order_repo, product_service)
 
             data.update({
-                "session": session,
-                "product_repo": product_repo,
-                "order_repo": order_repo,
-                "sheet_manager": self.sheet_manager,
-                "product_service": product_service,
-                "order_service": order_service
+                "session": session, "product_repo": product_repo, "order_repo": order_repo,
+                "sheet_manager": self.sheet_manager, "product_service": product_service, "order_service": order_service
             })
 
             return await handler(event, data)

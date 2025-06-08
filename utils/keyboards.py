@@ -148,8 +148,7 @@ def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
     buttons = []
     for adj in adjustments:
         prefix = "+" if adj.amount > 0 else "-"
-        emoji = "🚚" if not adj.affects_total else ""
-        text = f"❌ {emoji}{prefix} {format_price(abs(adj.amount))} грн: {adj.reason}"
+        text = f"❌ {prefix} {format_price(abs(adj.amount))} грн: {adj.reason}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"delete_adj:{adj.id}"))
 
     buttons.append(InlineKeyboardButton(text="➕ Добавить корректировку", callback_data="add_adj"))

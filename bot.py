@@ -17,27 +17,29 @@ async def main():
     bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     await bot.delete_webhook(drop_pending_updates=True)
 
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
+    dp = Dispatcher(storage=MemoryStorage())
 
     session = Session()
     sheet_manager = SheetManager(session)
 
-    await sheet_manager.start_background_tasks()
     dp.update.middleware(DependencyMiddleware(sheet_manager))
 
-    dp.include_router(start.router)
-    dp.include_router(actions.router)
-    dp.include_router(select_product_callbacks.router)
-    dp.include_router(order_action_callbacks.router)
-    dp.include_router(edit_order_callbacks.router)
-    dp.include_router(adj_order_callbacks.router)
-    dp.include_router(navigation.router)
-    dp.include_router(statistics.router)
-    dp.include_router(echo.router)
+    await sheet_manager.start_background_tasks()
+
+    dp.include_routers(
+        start.router,
+        actions.router,
+        select_product_callbacks.router,
+        order_action_callbacks.router,
+        edit_order_callbacks.router,
+        adj_order_callbacks.router,
+        navigation.router,
+        statistics.router,
+        echo.router
+    )
 
     try:
-        logging.info("Starting bot")
+        logging.info("Bot starting...")
         await dp.start_polling(bot)
     finally:
         await sheet_manager.stop_background_tasks()
@@ -49,4 +51,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        logging.error(f"Error: {e}", exc_info=True)
+        logging.error(f"Critical error: {e}", exc_info=True)
