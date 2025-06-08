@@ -41,7 +41,7 @@ class OrderService:
 
     def add_product_to_order(self, order: Order, product: Product, quantity: int) -> None:
         self.product_service.remove_quantity(product, quantity)
-        self.order_repo.add_item(order, product.id, quantity, product.price, product.cost)
+        self.order_repo.add_item(order, product.id, quantity, product.price, product.cost, product.full_name)
 
     def update_order_item_quantity(self, item: OrderItem, new_quantity: int) -> None:
         product = self.product_service.get_product_by_id(item.product_id)

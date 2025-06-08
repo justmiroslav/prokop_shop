@@ -28,7 +28,7 @@ def format_customer_message(order) -> str:
 
     for i, item in enumerate(order.items, 1):
         item_total = item.price * item.quantity
-        message += f"- {item.product.full_name} x{item.quantity} = {format_price(item_total)} грн\n"
+        message += f"- {item.display_name} x{item.quantity} = {format_price(item_total)} грн\n"
 
     discount = order.discount
 
@@ -48,7 +48,7 @@ def format_order_msg(order: Order) -> str:
     order_text = "\nТовары:\n"
     for item in order.items:
         item_total = item.price * item.quantity
-        order_text += f"- {item.product.full_name} x{item.quantity} - {format_price(item_total)} грн\n"
+        order_text += f"- {item.display_name} x{item.quantity} - {format_price(item_total)} грн\n"
 
     if order.adjustments:
         order_text += f"\nСумма товаров: {format_price(order.total_items)} грн\n"

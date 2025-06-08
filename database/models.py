@@ -99,7 +99,8 @@ class OrderItem(Base):
 
     id = Column(Integer, primary_key=True)
     order_id = Column(String, ForeignKey("orders.id"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    product_name = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)
     price = Column(Float, nullable=False)
     cost = Column(Float, nullable=False)
@@ -107,5 +108,15 @@ class OrderItem(Base):
     order = relationship("Order", back_populates="items")
     product = relationship("Product", back_populates="order_items")
 
+    @property
+    def display_name(self):
+        """Возвращает название товара"""
+        if self.product_name:
+            return self.product_name
+        elif self.product:
+            return self.product.full_name
+        else:
+            return "Неизвестный товар"
+
     def __repr__(self):
-        return f"<OrderItem {self.product_id} x{self.quantity}>"
+        return f"<OrderItem {self.display_name} x{self.quantity}>"

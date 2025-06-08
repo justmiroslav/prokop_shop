@@ -80,8 +80,9 @@ class OrderRepository:
         self.session.commit()
         return order
 
-    def add_item(self, order: Order, product_id: int, quantity: int, price: float, cost: float) -> None:
-        """Add item to order"""
+    def add_item(self, order: Order, product_id: int, quantity: int, price: float, cost: float,
+                 product_name: str = None) -> None:
+        """Add item to order with product name"""
         existing_item = self.session.query(OrderItem).filter(
             OrderItem.order_id == order.id,
             OrderItem.product_id == product_id
@@ -93,6 +94,7 @@ class OrderRepository:
             item = OrderItem(
                 order_id=order.id,
                 product_id=product_id,
+                product_name=product_name,
                 quantity=quantity,
                 price=price,
                 cost=cost
