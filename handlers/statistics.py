@@ -99,7 +99,7 @@ def create_detailed_report(stats: dict, period_name: str) -> StringIO:
 
         detailed_report.write("\nТовары:\n")
         for item in order.items:
-            detailed_report.write(f"- {item.product.full_name} x{item.quantity}\n")
+            detailed_report.write(f"- {item.display_name} x{item.quantity}\n")
 
         if order.adjustments:
             detailed_report.write(f"\nСумма товаров: {format_price(order.total_items)} грн\n")

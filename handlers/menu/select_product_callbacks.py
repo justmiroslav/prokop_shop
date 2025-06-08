@@ -168,6 +168,6 @@ async def enter_order_name(message: Message, state: FSMContext, order_service: O
         await message.answer(f"Заказ {order.display_name}\n" + format_order_msg(order) + "\nВыбери действие",
             reply_markup=get_order_actions_keyboard())
     else:
-        await message.answer(f"✅ Заказ {order_name} успешно завершен!", reply_markup=get_orders_menu())
+        await message.answer(f"✅ Заказ {order_name} успешно создан!", reply_markup=get_orders_menu())
         await state.clear()
         await state.update_data(context="orders")
