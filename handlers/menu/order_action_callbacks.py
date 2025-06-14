@@ -84,7 +84,8 @@ async def restore_order(callback: CallbackQuery, state: FSMContext, order_servic
     order_id = callback.data.split(":")[1]
     order = order_service.get_order(order_id)
 
-    if not order.name:
+    active_order_names = order_service.get_active_order_names_list()
+    if not order.name or order.name in active_order_names:
         await callback.message.edit_text(f"Заказ {order_id}\n\nДля восстановления необходимо задать уникальное имя")
         await state.set_state(OrderStates.ENTER_ORDER_NAME)
         await state.update_data(restore_order_id=order_id)

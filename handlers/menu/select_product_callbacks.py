@@ -142,9 +142,9 @@ async def enter_order_name(message: Message, state: FSMContext, order_service: O
         await message.answer("Имя заказа слишком длинное (более 30 символов)\n\nВведи имя заказа заново")
         return
 
-    all_order_names = order_service.get_all_order_names()
-    if order_name in all_order_names:
-        await message.answer("Заказ с таким именем уже существует\n\nПожалуйста, введи другое имя")
+    active_order_names = order_service.get_active_order_names_list()
+    if order_name in active_order_names:
+        await message.answer("Активный заказ с таким именем уже существует\n\nПожалуйста, введи другое имя")
         return
 
     data = await state.get_data()

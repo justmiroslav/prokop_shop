@@ -21,6 +21,7 @@ class Product(Base):
     quantity = Column(Integer, default=0)
     price = Column(Float, nullable=False)
     cost = Column(Float, nullable=False)
+    is_archived = Column(Boolean, default=False)
 
     order_items = relationship("OrderItem", back_populates="product")
 

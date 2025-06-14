@@ -14,9 +14,12 @@ class OrderRepository:
         """Get order by ID"""
         return self.session.query(Order).filter(Order.id == order_id).first()
 
-    def get_all_order_names(self) -> List[str]:
-        """Get all order names"""
-        return [order.name for order in self.session.query(Order.name).all()]
+    def get_active_order_names_list(self) -> List[str]:
+        """Get names of active orders only"""
+        return [order.name for order in self.session.query(Order.name).filter(
+            Order.status == OrderStatus.PENDING,
+            Order.name.isnot(None)
+        ).all()]
 
     def get_active_order_names(self) -> List[Tuple[str, str]]:
         """Get names of all active orders"""

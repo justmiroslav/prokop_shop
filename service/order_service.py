@@ -30,8 +30,8 @@ class OrderService:
     def get_order(self, order_id: str) -> Optional[Order]:
         return self.order_repo.get_by_id(order_id)
 
-    def get_all_order_names(self) -> List[str]:
-        return self.order_repo.get_all_order_names()
+    def get_active_order_names_list(self) -> List[str]:
+        return self.order_repo.get_active_order_names_list()
 
     def get_order_item(self, item_id: int) -> Optional[OrderItem]:
         return self.order_repo.get_order_item(item_id)
@@ -52,6 +52,13 @@ class OrderService:
         product = self.product_service.get_product_by_id(item.product_id)
         self.product_service.add_quantity(product, item.quantity)
         self.order_repo.remove_item(item)
+
+    def replace_order_item(self, item: OrderItem, quantity: int) -> None:
+        """Replace item in order - add cost adjustment and return quantity to stock"""
+        product = self.product_service.get_product_by_id(item.product_id)
+
+        self.order_repo.add_profit_adjustment(item.order, -(product.cost * quantity), f"Замена x{quantity} товара {product.full_name}", affects_total=False)
+        self.product_service.remove_quantity(product, quantity)
 
     def complete_order(self, order: Order, completion_date: datetime = None) -> Tuple[bool, str]:
         if not order.items:

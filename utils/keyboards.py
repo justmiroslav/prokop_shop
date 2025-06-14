@@ -125,11 +125,11 @@ def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardM
     buttons = []
     for item in order_items:
         prefix = "❌ " if action_prefix.startswith("remove") else ""
-        text = f"{prefix}{item.product.full_name}"
+        text = f"{prefix}{item.display_name}"
         buttons.append(InlineKeyboardButton(text=text, callback_data=f"{action_prefix}:{item.id}"))
 
     keyboard = format_inline_kb(buttons, 1)
-    navigation = "order_continue" if action_prefix == "remove_from_new" else "order_actions"
+    navigation = "order_continue" if action_prefix == "remove_from_new" else "order_adjustments" if action_prefix == "replace_item" else "order_actions"
     keyboard.append([get_back_button(navigation)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -137,10 +137,11 @@ def get_adjustment_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text="💰 Скидка", callback_data="profit_adj:discount"),
         InlineKeyboardButton(text="🚚 Доставка", callback_data="profit_adj:delivery"),
+        InlineKeyboardButton(text="🔄 Замена товара", callback_data="profit_adj:replace"),
         InlineKeyboardButton(text="➕ Прибавить к профиту", callback_data="profit_adj:add"),
         InlineKeyboardButton(text="➖ Вычесть из профита", callback_data="profit_adj:subtract")
     ]
-    keyboard = format_inline_kb(buttons, 2)
+    keyboard = format_inline_kb(buttons, 3)
     keyboard.append([get_back_button("order_actions")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

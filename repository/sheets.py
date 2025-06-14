@@ -3,6 +3,7 @@ from google.oauth2.service_account import Credentials
 from sqlalchemy.orm import Session
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
+from typing import Set
 
 from utils.config import CONFIG
 from database.models import Product
@@ -55,17 +56,25 @@ class SheetManager:
             if len(data) <= 1:
                 return
 
+            sheet_products: Set[tuple] = set()
+
             for i, row in enumerate(data[1:], start=2):
                 if len(row) < CONFIG.COL_COST + 1:
                     continue
 
                 try:
                     name, attribute = row[CONFIG.COL_PRODUCT], row[CONFIG.COL_ATTRIBUTE]
-                    quantity, price, cost = int(row[CONFIG.COL_QUANTITY]), float(row[CONFIG.COL_PRICE]), float(row[CONFIG.COL_COST])
+                    if not name or not attribute:
+                        continue
 
+                    quantity, price, cost = int(row[CONFIG.COL_QUANTITY]), float(row[CONFIG.COL_PRICE]), float(row[CONFIG.COL_COST])
+                    sheet_products.add((name, attribute))
                     product = self.product_repo.get_by_name_attribute(sheet_name, name, attribute)
 
                     if product:
+                        if product.is_archived:
+                            self.product_repo.unarchive_product(product)
+
                         if product.quantity != quantity or product.price != price or product.cost != cost:
                             product.name, product.attribute, product.quantity = name, attribute, quantity
                             product.price, product.cost = price, cost
@@ -77,6 +86,10 @@ class SheetManager:
 
                 except (ValueError, IndexError) as e:
                     logging.warning(f"Row {i} in {sheet_name}: {e}")
+
+            for product in self.product_repo.get_all_by_sheet(sheet_name):
+                if (product.name, product.attribute) not in sheet_products:
+                    self.product_repo.archive_product(product)
 
         except Exception as e:
             logging.error(f"Error syncing {sheet_name}: {e}")

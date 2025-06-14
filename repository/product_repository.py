@@ -32,12 +32,16 @@ class ProductRepository:
         return product
 
     def get_unique_categories(self) -> List[str]:
-        """Get all unique product categories"""
-        return [r[0] for r in self.session.query(Product.sheet_name).distinct()]
+        """Get all unique product categories (excluding archived)"""
+        return [r[0] for r in self.session.query(Product.sheet_name).filter(
+            Product.is_archived == False).distinct()]
 
     def get_unique_product_names(self, category: str, include_zero_qty: bool = False) -> List[str]:
-        """Get all unique product names in a category, optionally including zero quantity"""
-        query = self.session.query(Product.name).filter(Product.sheet_name == category)
+        """Get all unique product names in a category"""
+        query = self.session.query(Product.name).filter(
+            Product.sheet_name == category,
+            Product.is_archived == False
+        )
 
         if not include_zero_qty:
             query = query.filter(Product.quantity > 0)
@@ -45,13 +49,28 @@ class ProductRepository:
         return [r[0] for r in query.distinct()]
 
     def get_attributes_by_product(self, category: str, product_name: str, include_zero_qty: bool = False) -> List[str]:
-        """Get all attributes for a product, optionally including zero quantity"""
+        """Get all attributes for a product"""
         query = self.session.query(Product.attribute).filter(
             Product.sheet_name == category,
-            Product.name == product_name
+            Product.name == product_name,
+            Product.is_archived == False
         )
 
         if not include_zero_qty:
             query = query.filter(Product.quantity > 0)
 
         return [r[0] for r in query]
+
+    def get_all_by_sheet(self, sheet_name: str) -> List[Product]:
+        """Get all products from specific sheet"""
+        return self.session.query(Product).filter(Product.sheet_name == sheet_name and Product.is_archived == False).all()
+
+    def archive_product(self, product: Product) -> Product:
+        """Archive a product"""
+        product.is_archived = True
+        return self.update(product)
+
+    def unarchive_product(self, product: Product) -> Product:
+        """Unarchive a product"""
+        product.is_archived = False
+        return self.update(product)
