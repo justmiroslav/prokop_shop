@@ -158,6 +158,12 @@ class OrderRepository:
             ProfitAdjustment.order_id == order_id
         ).order_by(ProfitAdjustment.created_at).all()
 
+    def get_profit_adjustment(self, adjustment_id: int) -> Optional[ProfitAdjustment]:
+        """Get profit adjustment by ID"""
+        return self.session.query(ProfitAdjustment).filter(
+            ProfitAdjustment.id == adjustment_id
+        ).first()
+
     def delete_profit_adjustment(self, adjustment_id: int) -> None:
         """Delete a profit adjustment"""
         adjustment = self.session.query(ProfitAdjustment).filter(

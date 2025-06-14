@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Tuple
 from datetime import datetime, date, timedelta
+import re
 
 from database.models import Order, OrderItem, Product, ProfitAdjustment
 from repository.order_repository import OrderRepository
@@ -121,7 +122,34 @@ class OrderService:
         return self.order_repo.get_profit_adjustments(order_id)
 
     def delete_profit_adjustment(self, adjustment_id: int) -> None:
+        adjustment = self.order_repo.get_profit_adjustment(adjustment_id)
+        if adjustment and self._is_replacement_adjustment(adjustment):
+            self._return_replacement_quantity(adjustment)
+
         self.order_repo.delete_profit_adjustment(adjustment_id)
+
+    @staticmethod
+    def _is_replacement_adjustment(adjustment: ProfitAdjustment) -> bool:
+        return adjustment.reason.startswith("Замена x")
+
+    def _return_replacement_quantity(self, adjustment: ProfitAdjustment) -> None:
+        match = re.match(r"Замена x(\d+) товара (.+)", adjustment.reason)
+        if not match:
+            return
+
+        quantity, full_name = int(match.group(1)), match.group(2)
+        name_match = re.match(r"(.+) \((.+)\)", full_name)
+        if not name_match:
+            return
+
+        name, attribute = name_match.group(1), name_match.group(2)
+        categories = self.product_service.get_categories()
+
+        for category in categories:
+            product = self.product_service.get_product(category, name, attribute)
+            if product:
+                self.product_service.add_quantity(product, quantity)
+                break
 
     @staticmethod
     def get_completion_date_options(order: Order) -> List[Tuple[date, str]]:

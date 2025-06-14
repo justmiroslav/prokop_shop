@@ -12,7 +12,8 @@ from utils.keyboards import (
     get_category_keyboard,
     get_product_keyboard,
     get_attribute_keyboard,
-    get_adjustment_keyboard
+    get_adjustment_keyboard,
+    get_all_adjustments_keyboard
 )
 
 from utils.config import CONFIG
@@ -39,8 +40,14 @@ async def handle_cancel(callback: CallbackQuery, state: FSMContext, order_servic
         await state.update_data(context="orders", order_id=order_id, action="view_edit", inline_message_id=response.message_id)
     elif destination == "adjustment-menu" and order_id:
         order = order_service.get_order(order_id)
-        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
-            reply_markup=get_adjustment_keyboard())
+        adjustments = order_service.get_profit_adjustments(order_id)
+
+        if adjustments:
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nСуществующие корректировки профита",
+                reply_markup=get_all_adjustments_keyboard(adjustments))
+        else:
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
+                reply_markup=get_adjustment_keyboard())
         await state.update_data(context="orders", order_id=order_id, action="view_edit")
     else:
         await callback.message.edit_text("Операция отменена")
@@ -72,8 +79,13 @@ async def handle_back(callback: CallbackQuery, state: FSMContext, order_service:
             reply_markup=get_order_continue_keyboard())
 
     elif destination == "order_adjustments":
-        await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
-            reply_markup=get_adjustment_keyboard())
+        adjustments = order_service.get_profit_adjustments(order_id)
+        if adjustments:
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nСуществующие корректировки профита",
+                reply_markup=get_all_adjustments_keyboard(adjustments))
+        else:
+            await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
+                reply_markup=get_adjustment_keyboard())
 
     elif destination == "replace_items":
         await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери товар для замены",

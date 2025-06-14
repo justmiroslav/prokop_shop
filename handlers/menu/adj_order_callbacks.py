@@ -30,7 +30,7 @@ async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMConte
     order_id = data.get("order_id")
 
     order = order_service.get_order(order_id)
-    order_text = f"Заказ {order.display_name}\n" + format_order_msg(order)
+    order_text = f"Заказ {order.display_name}\n"
 
     if adj_type == "replace":
         await callback.message.edit_text(f"{order_text}\nВыбери товар для замены",
@@ -47,7 +47,7 @@ async def select_profit_adjustment_type(callback: CallbackQuery, state: FSMConte
     else:
         text, reason, affects_total = ", которую нужно вычесть из профита", "", True
 
-    await callback.message.edit_text(order_text + f"\nВведи сумму{text}")
+    await callback.message.edit_text(order_text + format_order_msg(order) + f"\nВведи сумму{text}")
     await state.update_data(adj_type=adj_type, adj_reason=reason, affects_total=affects_total,
         prompt_chat_id=callback.message.chat.id, prompt_message_id=callback.message.message_id
     )
@@ -129,8 +129,10 @@ async def add_new_adjustment(callback: CallbackQuery, state: FSMContext, order_s
     data = await state.get_data()
     order_id = data.get("order_id")
     order = order_service.get_order(order_id)
+    adjustments = order_service.get_profit_adjustments(order_id)
+
     await callback.message.edit_text(f"Заказ {order.display_name}\n\nВыбери тип корректировки профита",
-        reply_markup=get_adjustment_keyboard()
+        reply_markup=get_adjustment_keyboard(has_adjustments=bool(adjustments))
     )
     await callback.answer()
 

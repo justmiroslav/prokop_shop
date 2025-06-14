@@ -133,7 +133,7 @@ def get_order_items_keyboard(order_items, action_prefix: str) -> InlineKeyboardM
     keyboard.append([get_back_button(navigation)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_adjustment_keyboard() -> InlineKeyboardMarkup:
+def get_adjustment_keyboard(has_adjustments: bool = False) -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text="💰 Скидка", callback_data="profit_adj:discount"),
         InlineKeyboardButton(text="🚚 Доставка", callback_data="profit_adj:delivery"),
@@ -142,7 +142,8 @@ def get_adjustment_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="➖ Вычесть из профита", callback_data="profit_adj:subtract")
     ]
     keyboard = format_inline_kb(buttons, 3)
-    keyboard.append([get_back_button("order_actions")])
+    back_destination = "order_adjustments" if has_adjustments else "order_actions"
+    keyboard.append([get_back_button(back_destination)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_all_adjustments_keyboard(adjustments) -> InlineKeyboardMarkup:
