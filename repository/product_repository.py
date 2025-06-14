@@ -63,7 +63,10 @@ class ProductRepository:
 
     def get_all_by_sheet(self, sheet_name: str) -> List[Product]:
         """Get all products from specific sheet"""
-        return self.session.query(Product).filter(Product.sheet_name == sheet_name and Product.is_archived == False).all()
+        return self.session.query(Product).filter(
+            Product.sheet_name == sheet_name,
+            Product.is_archived == False
+        ).all()
 
     def archive_product(self, product: Product) -> Product:
         """Archive a product"""
