@@ -75,9 +75,12 @@ class SheetManager:
                         if product.is_archived:
                             self.product_repo.unarchive_product(product)
 
-                        if product.quantity != quantity or product.price != price or product.cost != cost:
+                        needs_update = (product.quantity != quantity or product.price != price or
+                            product.cost != cost or product.sheet_row != i)
+
+                        if needs_update:
                             product.name, product.attribute, product.quantity = name, attribute, quantity
-                            product.price, product.cost = price, cost
+                            product.price, product.cost, product.sheet_row = price, cost, i
                             self.product_repo.update(product)
                     else:
                         product = Product(sheet_name=sheet_name, sheet_row=i, name=name,
@@ -98,6 +101,7 @@ class SheetManager:
         try:
             product.quantity = new_quantity
             self.product_repo.update(product)
+            logging.info(f"Queued update for product {product.full_name}")
 
             update = QuantityUpdate(product.id, new_quantity, product.sheet_name, product.sheet_row)
 
@@ -126,6 +130,7 @@ class SheetManager:
     async def _process_single_update(self, update: QuantityUpdate):
         """Process single sheet update"""
         try:
+            logging.info(f"Processing update for product {update.product_id}: {update.new_quantity} in {update.sheet_name}")
             if update.sheet_name not in self.product_sheets:
                 return
 
@@ -140,6 +145,7 @@ class SheetManager:
 
     def _update_sheet_quantity(self, sheet_name: str, row: int, quantity: int):
         """Update quantity in sheet"""
+        logging.info(f"Updating {sheet_name} row {row} quantity to {quantity}")
         worksheet = self.product_sheets[sheet_name]
         worksheet.update_cell(row, CONFIG.COL_QUANTITY + 1, quantity)
 
