@@ -140,11 +140,12 @@ class OrderRepository:
         """Get order item by ID"""
         return self.session.query(OrderItem).filter(OrderItem.id == item_id).first()
 
-    def add_profit_adjustment(self, order: Order, amount: float, reason: str, affects_total: bool = True) -> ProfitAdjustment:
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str, affects_total: bool = True, profit_amount: float = None) -> ProfitAdjustment:
         """Add profit adjustment to order"""
         adjustment = ProfitAdjustment(
             order_id=order.id,
             amount=amount,
+            profit_amount=profit_amount,
             reason=reason,
             affects_total=affects_total
         )

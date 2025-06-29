@@ -1,6 +1,5 @@
 from typing import List, Optional, Dict, Tuple
 from datetime import datetime, date, timedelta
-import re
 
 from database.models import Order, OrderItem, Product, ProfitAdjustment
 from repository.order_repository import OrderRepository
@@ -55,11 +54,16 @@ class OrderService:
         self.order_repo.remove_item(item)
 
     def replace_order_item(self, item: OrderItem, quantity: int) -> None:
-        """Replace item in order - add cost adjustment and return quantity to stock"""
+        """Replace item in order - adjust total and profit without touching inventory"""
         product = self.product_service.get_product_by_id(item.product_id)
 
-        self.order_repo.add_profit_adjustment(item.order, -(product.cost * quantity), f"Замена x{quantity} товара {product.full_name}", affects_total=False)
-        self.product_service.remove_quantity(product, quantity)
+        total_price = product.price * quantity
+
+        self.order_repo.add_profit_adjustment(item.order, -min(total_price, item.order.total),
+            f"Возврат x{quantity} товара {product.full_name}",
+            affects_total=True,
+            profit_amount=-total_price
+        )
 
     def complete_order(self, order: Order, completion_date: datetime = None) -> Tuple[bool, str]:
         if not order.items:
@@ -115,41 +119,14 @@ class OrderService:
             "net_profit": profit
         }
 
-    def add_profit_adjustment(self, order: Order, amount: float, reason: str, affects_total: bool = True) -> None:
-        self.order_repo.add_profit_adjustment(order, amount, reason, affects_total)
+    def add_profit_adjustment(self, order: Order, amount: float, reason: str, affects_total: bool = True, profit_amount: float = None) -> None:
+        self.order_repo.add_profit_adjustment(order, amount, reason, affects_total, profit_amount)
 
     def get_profit_adjustments(self, order_id: str) -> List[ProfitAdjustment]:
         return self.order_repo.get_profit_adjustments(order_id)
 
     def delete_profit_adjustment(self, adjustment_id: int) -> None:
-        adjustment = self.order_repo.get_profit_adjustment(adjustment_id)
-        if adjustment and self._is_replacement_adjustment(adjustment):
-            self._return_replacement_quantity(adjustment)
-
         self.order_repo.delete_profit_adjustment(adjustment_id)
-
-    @staticmethod
-    def _is_replacement_adjustment(adjustment: ProfitAdjustment) -> bool:
-        return adjustment.reason.startswith("Замена x")
-
-    def _return_replacement_quantity(self, adjustment: ProfitAdjustment) -> None:
-        match = re.match(r"Замена x(\d+) товара (.+)", adjustment.reason)
-        if not match:
-            return
-
-        quantity, full_name = int(match.group(1)), match.group(2)
-        name_match = re.match(r"(.+) \((.+)\)", full_name)
-        if not name_match:
-            return
-
-        name, attribute = name_match.group(1), name_match.group(2)
-        categories = self.product_service.get_categories()
-
-        for category in categories:
-            product = self.product_service.get_product(category, name, attribute)
-            if product:
-                self.product_service.add_quantity(product, quantity)
-                break
 
     @staticmethod
     def get_completion_date_options(order: Order) -> List[Tuple[date, str]]:

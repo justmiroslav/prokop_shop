@@ -38,6 +38,7 @@ class ProfitAdjustment(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(String, ForeignKey("orders.id"), nullable=False)
     amount = Column(Float, nullable=False)
+    profit_amount = Column(Float, nullable=True)
     reason = Column(String, nullable=False)
     affects_total = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
@@ -74,11 +75,11 @@ class Order(Base):
 
     @property
     def total_profit_adjustments(self):
-        return sum(adj.amount for adj in self.adjustments)
+        return sum(adj.profit_amount if adj.profit_amount is not None else adj.amount for adj in self.adjustments)
 
     @property
     def total(self):
-        return self.total_items + self.total_adjustments
+        return max(0, self.total_items + self.total_adjustments)
 
     @property
     def total_cost(self):
