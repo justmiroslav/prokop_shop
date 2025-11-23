@@ -1,9 +1,10 @@
-import gspread, logging, asyncio
-from google.oauth2.service_account import Credentials
+import gspread, logging, asyncio, time
+from google.auth.exceptions import RefreshError
+from gspread.exceptions import APIError
 from sqlalchemy.orm import Session
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
-from typing import Set
+from typing import Set, Callable, Any
 
 from utils.config import CONFIG
 from database.models import Product
@@ -21,13 +22,20 @@ class SheetManager:
         self.db_session = db_session
         self.product_repo = ProductRepository(db_session)
         self.client = self.get_client()
-        self.sheet = self.client.open_by_key(CONFIG.SHEET_ID)
-        self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if sheet.title != CONFIG.EXCLUDED_SHEET}
+        self.sheet = None
+        self.product_sheets = {}
 
         self.update_queue = asyncio.Queue()
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.sync_task = None
         self.queue_task = None
+
+        self._init_sheets()
+
+    def _init_sheets(self):
+        """Initialize Google Sheets client and worksheets"""
+        self.sheet = self.client.open_by_key(CONFIG.SHEET_ID)
+        self.product_sheets = {sheet.title: sheet for sheet in self.sheet.worksheets() if sheet.title != CONFIG.EXCLUDED_SHEET}
 
         for sheet_name, worksheet in self.product_sheets.items():
             header = worksheet.row_values(1)
@@ -36,8 +44,24 @@ class SheetManager:
     @staticmethod
     def get_client() -> gspread.Client:
         """Get Google Sheets client"""
-        creds = Credentials.from_service_account_file(CONFIG.CREDENTIALS_FILE, scopes=CONFIG.SCOPES)
-        return gspread.authorize(creds)
+        return gspread.service_account(filename=CONFIG.CREDENTIALS_FILE, scopes=CONFIG.SCOPES)
+
+    def retry_with_backoff(self, func: Callable, *args, max_retries: int = 3, **kwargs) -> Any:
+        """Execute function with exponential backoff retry on auth errors"""
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except (RefreshError, APIError):
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                    self.client = self.get_client()
+                    self._init_sheets()
+                else:
+                    logging.error("Max retries reached in retry_with_backoff")
+            except Exception as e:
+                logging.error(f"Unexpected error in retry_with_backoff: {e}")
+        return None
 
     async def sync_products(self):
         """Async product sync with sequential sheet processing for DB safety"""
@@ -45,14 +69,13 @@ class SheetManager:
             loop = asyncio.get_event_loop()
             for sheet_name, worksheet in self.product_sheets.items():
                 await loop.run_in_executor(self.executor, self._sync_sheet_products, sheet_name, worksheet)
-            logging.info("Products synchronized")
         except Exception as e:
             logging.error(f"Error in sync_products: {e}")
 
     def _sync_sheet_products(self, sheet_name: str, worksheet: gspread.Worksheet):
         """Sync products from specific worksheet"""
         try:
-            data = worksheet.get_all_values()
+            data = self.retry_with_backoff(worksheet.get_all_values)
             if len(data) <= 1:
                 return
 
@@ -147,7 +170,7 @@ class SheetManager:
         """Update quantity in sheet"""
         logging.info(f"Updating {sheet_name} row {row} quantity to {quantity}")
         worksheet = self.product_sheets[sheet_name]
-        worksheet.update_cell(row, CONFIG.COL_QUANTITY + 1, quantity)
+        self.retry_with_backoff(worksheet.update_cell, row, CONFIG.COL_QUANTITY + 1, quantity)
 
     async def start_background_tasks(self, refresh_interval=15):
         """Start background tasks with initial delay"""
