@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 from typing import Set, Callable, Any
 
-from utils.config import CONFIG
+from utils.config import CONFIG, get_credentials
 from database.models import Product
 from repository.product_repository import ProductRepository
 
@@ -44,7 +44,7 @@ class SheetManager:
     @staticmethod
     def get_client() -> gspread.Client:
         """Get Google Sheets client"""
-        return gspread.service_account(filename=CONFIG.CREDENTIALS_FILE, scopes=CONFIG.SCOPES)
+        return gspread.service_account_from_dict(info=get_credentials(), scopes=CONFIG.SCOPES)
 
     def retry_with_backoff(self, func: Callable, *args, max_retries: int = 3, **kwargs) -> Any:
         """Execute function with exponential backoff retry on auth errors"""
